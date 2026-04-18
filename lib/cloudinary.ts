@@ -15,7 +15,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
-  timeout: 120000,
+  timeout: 500,
 });
 
 export const uploadToCloudinary = async (
@@ -33,7 +33,7 @@ export const uploadToCloudinary = async (
     const result = await cloudinary.uploader.upload(dataUrl, {
       folder,
       resource_type: resourceType,
-      timeout: 300000, // 5 minutes
+      timeout: 500, // 5 second
     });
     console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
     return result;
