@@ -67,39 +67,50 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     if (!videoRef.current) return;
 
     const video = videoRef.current;
+
+    // Tunggu video benar-benar siap
+    if (video.readyState < 2) {
+      Swal.fire({ icon: "warning", title: "Kamera Belum Siap", text: "Tunggu sebentar lalu coba lagi.", confirmButtonColor: "#3b82f6" });
+      return;
+    }
+
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Mirror the image if using front camera
-    ctx.translate(canvas.width, 0);
+    ctx.translate(width, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, 0, 0, width, height);
 
     stopCamera();
 
-    // Gunakan toDataURL sebagai metode utama — lebih reliable di Safari mobile
-    try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-      const arr = dataUrl.split(",");
-      if (arr.length < 2 || !arr[1]) throw new Error("toDataURL gagal");
-      const bstr = atob(arr[1]);
-      const u8arr = new Uint8Array(bstr.length);
-      for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-      const file = new File([u8arr], "capture.jpg", { type: "image/jpeg" });
-      uploadFile(file);
-    } catch {
-      // Fallback ke toBlob jika toDataURL gagal
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          Swal.fire({ icon: "error", title: "Gagal", text: "Tidak dapat mengambil foto. Coba lagi.", confirmButtonColor: "#3b82f6" });
-          return;
-        }
+    // Gunakan toBlob sebagai metode utama — lebih reliable dari toDataURL di mobile
+    canvas.toBlob((blob) => {
+      if (blob && blob.size > 100) {
         uploadFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-      }, "image/jpeg", 0.9);
-    }
+        return;
+      }
+
+      // Fallback: toDataURL
+      try {
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        const parts = dataUrl.split(",");
+        if (parts.length < 2 || parts[1].length < 10) {
+          throw new Error("Canvas kosong");
+        }
+        const bstr = atob(parts[1]);
+        const u8arr = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+        uploadFile(new File([u8arr], "capture.jpg", { type: "image/jpeg" }));
+      } catch {
+        Swal.fire({ icon: "error", title: "Gagal Ambil Foto", text: "Tidak dapat memproses gambar. Coba lagi.", confirmButtonColor: "#3b82f6" });
+      }
+    }, "image/jpeg", 0.9);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,12 +220,17 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
   const uploadFile = async (file: File) => {
     setUploading(true);
     
-    // Create local preview
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
 
     try {
-      // Selalu konversi ke JPEG via canvas — mencegah HEIC/HEIF/unknown dikirim ke Cloudinary
+      console.log(`[Upload] file name: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+
+      if (file.size < 100) {
+        throw new Error(`File terlalu kecil (${file.size} bytes) — kemungkinan canvas gagal render. Coba lagi.`);
+      }
+
+      // Selalu konversi ke JPEG via canvas
       let finalFile: File;
       try {
         finalFile = await toJpegFile(file);
@@ -222,7 +238,8 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
         finalFile = file;
       }
 
-      // Pastikan file yang dikirim selalu bertipe image/jpeg
+      console.log(`[Upload] finalFile name: ${finalFile.name}, type: ${finalFile.type}, size: ${finalFile.size} bytes`);
+
       if (finalFile.type !== "image/jpeg") {
         finalFile = new File([finalFile], "photo.jpg", { type: "image/jpeg" });
       }
