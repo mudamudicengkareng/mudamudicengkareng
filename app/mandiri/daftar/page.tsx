@@ -299,9 +299,6 @@ export default function MandiriDaftarPage() {
 
                   if (isIOS) {
                     window.location.href = `comgooglemaps://?q=${encodedPlace}`;
-                    setTimeout(() => {
-                      window.open(`https://maps.apple.com/?q=${encodedPlace}`, '_blank');
-                    }, 600);
                   } else if (isAndroid) {
                     window.location.href = `geo:0,0?q=${encodedPlace}`;
                   } else {
