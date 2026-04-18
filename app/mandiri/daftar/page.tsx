@@ -145,18 +145,7 @@ export default function MandiriDaftarPage() {
     const parts = text.split(urlRegex);
     return parts.map((part, i) => {
       if (part.match(urlRegex)) {
-        const cleanUrl = part.trim().replace(/[.,;]$/, "");
-        return (
-          <a
-            key={i}
-            href={cleanUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#3b82f6", textDecoration: "underline" }}
-          >
-            {cleanUrl}
-          </a>
-        );
+        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>{part}</a>;
       }
       return part;
     });
@@ -195,13 +184,6 @@ export default function MandiriDaftarPage() {
     const timeMatch = text.match(/Waktu Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Tempat Acara|https?:\/\/|$))/);
     const placeMatch = text.match(/Tempat Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Waktu Acara|https?:\/\/|$))/);
     const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
-    let mapsUrl = urlMatch ? urlMatch[1].trim().replace(/[.,;]$/, "") : null;
-
-    // Fallback: If no URL is found in the text but "Tempat Acara" exists, create a search link
-    if (!mapsUrl && placeMatch) {
-      mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeMatch[1].trim())}`;
-    }
-
 
     const details = [];
     if (dateMatch) details.push({ icon: Calendar, label: "Tanggal", value: dateMatch[1].trim() });
@@ -271,11 +253,44 @@ export default function MandiriDaftarPage() {
             </div>
           ))}
           
-          {mapsUrl && (
-            <a 
-              href={mapsUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
+          {urlMatch && (
+            <button
+              type="button"
+              onClick={() => {
+                const rawUrl = urlMatch[1];
+                // Normalize the URL to ensure it works across all platforms
+                // Extract coordinates or place info from the URL if possible
+                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                  // Try to extract lat/lng from common Google Maps URL formats
+                  // e.g. @-7.123,112.456 or ll=-7.123,112.456 or q=-7.123,112.456
+                  const coordMatch = rawUrl.match(/@([-\d.]+),([-\d.]+)/) ||
+                                     rawUrl.match(/[?&]ll=([-\d.]+),([-\d.]+)/) ||
+                                     rawUrl.match(/[?&]q=([-\d.]+),([-\d.]+)/);
+                  
+                  if (coordMatch) {
+                    const lat = coordMatch[1];
+                    const lng = coordMatch[2];
+                    // Use geo: URI scheme which both iOS (Apple Maps/Google Maps) and Android support
+                    // Google Maps on Android will intercept geo: URIs
+                    window.location.href = `geo:${lat},${lng}?q=${lat},${lng}`;
+                    return;
+                  }
+
+                  // If no coordinates found, build a safe Google Maps search URL
+                  // Use maps.google.com which is universally supported
+                  const safeUrl = rawUrl.startsWith('https://') || rawUrl.startsWith('http://')
+                    ? rawUrl
+                    : `https://${rawUrl}`;
+                  
+                  // Replace maps.app.goo.gl short links and other variants with universal URL
+                  // Open in new tab as fallback
+                  window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                  window.open(rawUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
               style={{ 
                 marginTop: '8px',
                 display: 'flex',
@@ -290,13 +305,16 @@ export default function MandiriDaftarPage() {
                 textDecoration: 'none',
                 justifyContent: 'center',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%'
               }}
               onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
               onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
             >
               <ExternalLink size={16} /> Lihat Lokasi di Maps
-            </a>
+            </button>
           )}
         </div>
       </div>
