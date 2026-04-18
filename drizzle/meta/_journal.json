@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776344135816,
+      "tag": "0000_fuzzy_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776370736690,
+      "tag": "0001_whole_mentallo",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776454241469,
+      "tag": "0002_ambiguous_mongu",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776466000173,
+      "tag": "0003_reflective_ben_parker",
+      "breakpoints": true
+    }
+  ]
+}
