@@ -10,6 +10,12 @@ const nextConfig = {
   images: {
     minimumCacheTTL: 60,
   },
+  webpack: (config) => {
+    config.infrastructureLogging = {
+      level: 'error',
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
