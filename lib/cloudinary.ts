@@ -18,29 +18,24 @@ cloudinary.config({
   timeout: 500,
 });
 
-export const uploadToCloudinary = async (
-  fileBuffer: Buffer,
-  folder: string = "jb2-id",
-  resourceType: "auto" | "image" | "video" | "raw" = "auto"
+export const uploadToCloudinary = (
+  buffer: Buffer, 
+  folder: string, 
+  resourceType: "image" | "video" | "auto" = "auto"
 ) => {
-  const start = Date.now();
-  console.log(`DEBUG: Start Cloudinary Base64 upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB...`);
-
-  const fileBase64 = fileBuffer.toString("base64");
-  const dataUrl = `data:image/jpeg;base64,${fileBase64}`;
-
-  try {
-    const result = await cloudinary.uploader.upload(dataUrl, {
-      folder,
-      resource_type: resourceType,
-      timeout: 500, // 5 second
-    });
-    console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
-    return result;
-  } catch (error: any) {
-    console.error(`DEBUG: Cloudinary SDK Error after ${Date.now() - start}ms:`, JSON.stringify(error, null, 2));
-    throw error;
-  }
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { 
+        folder: folder, 
+        resource_type: resourceType 
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    
+    uploadStream.end(buffer);
+  });
 };
-
 export default cloudinary;
