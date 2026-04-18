@@ -192,21 +192,21 @@ export default function MandiriDaftarPage() {
 
     return (
       <div style={{ textAlign: 'left' }}>
-        <p style={{ 
-          fontSize: "14px", 
-          color: "var(--text-muted)", 
-          lineHeight: "1.6", 
-          padding: "0 10px", 
+        <p style={{
+          fontSize: "14px",
+          color: "var(--text-muted)",
+          lineHeight: "1.6",
+          padding: "0 10px",
           textAlign: 'center',
-          marginBottom: '20px' 
+          marginBottom: '20px'
         }}>
           {mainText}
         </p>
-        
-        <div style={{ 
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', 
-          borderRadius: '20px', 
-          padding: '20px', 
+
+        <div style={{
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          borderRadius: '20px',
+          padding: '20px',
           border: '1px solid #e2e8f0',
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
           display: 'flex',
@@ -216,10 +216,10 @@ export default function MandiriDaftarPage() {
         }}>
           {details.map((item, i) => (
             <div key={i} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-              <div style={{ 
-                background: '#eff6ff', 
-                padding: '10px', 
-                borderRadius: '12px', 
+              <div style={{
+                background: '#eff6ff',
+                padding: '10px',
+                borderRadius: '12px',
                 color: '#3b82f6',
                 display: 'flex',
                 alignItems: 'center',
@@ -229,21 +229,21 @@ export default function MandiriDaftarPage() {
                 <item.icon size={18} />
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ 
-                  fontSize: '11px', 
-                  fontWeight: '800', 
-                  color: '#94a3b8', 
-                  textTransform: 'uppercase', 
+                <p style={{
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  color: '#94a3b8',
+                  textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  marginBottom: '2px', 
-                  marginTop: 0 
+                  marginBottom: '2px',
+                  marginTop: 0
                 }}>
                   {item.label}
                 </p>
-                <p style={{ 
-                  fontSize: '14px', 
-                  color: '#1e293b', 
-                  fontWeight: '600', 
+                <p style={{
+                  fontSize: '14px',
+                  color: '#1e293b',
+                  fontWeight: '600',
                   margin: 0,
                   lineHeight: '1.4'
                 }}>
@@ -252,46 +252,71 @@ export default function MandiriDaftarPage() {
               </div>
             </div>
           ))}
-          
+
           {urlMatch && (
             <button
               type="button"
               onClick={() => {
                 const rawUrl = urlMatch[1];
-                // Normalize the URL to ensure it works across all platforms
-                // Extract coordinates or place info from the URL if possible
-                const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-                
-                if (isMobile) {
-                  // Try to extract lat/lng from common Google Maps URL formats
-                  // e.g. @-7.123,112.456 or ll=-7.123,112.456 or q=-7.123,112.456
-                  const coordMatch = rawUrl.match(/@([-\d.]+),([-\d.]+)/) ||
-                                     rawUrl.match(/[?&]ll=([-\d.]+),([-\d.]+)/) ||
-                                     rawUrl.match(/[?&]q=([-\d.]+),([-\d.]+)/);
-                  
-                  if (coordMatch) {
-                    const lat = coordMatch[1];
-                    const lng = coordMatch[2];
-                    // Use geo: URI scheme which both iOS (Apple Maps/Google Maps) and Android support
-                    // Google Maps on Android will intercept geo: URIs
-                    window.location.href = `geo:${lat},${lng}?q=${lat},${lng}`;
-                    return;
-                  }
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                const isAndroid = /Android/i.test(navigator.userAgent);
 
-                  // If no coordinates found, build a safe Google Maps search URL
-                  // Use maps.google.com which is universally supported
-                  const safeUrl = rawUrl.startsWith('https://') || rawUrl.startsWith('http://')
-                    ? rawUrl
-                    : `https://${rawUrl}`;
-                  
-                  // Replace maps.app.goo.gl short links and other variants with universal URL
-                  // Open in new tab as fallback
-                  window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                // Extract coordinates from URL (e.g., @-7.123,112.456 or ll= or q=)
+                const coordMatch =
+                  rawUrl.match(/@([-\d.]+),([-\d.]+)/) ||
+                  rawUrl.match(/[?&]ll=([-\d.]+),([-\d.]+)/) ||
+                  rawUrl.match(/[?&]q=([-\d.]+),([-\d.]+)/);
+
+                // Use the Tempat Acara value as the place search query
+                const placeName = placeMatch ? placeMatch[1].trim() : null;
+
+                if (coordMatch) {
+                  const lat = coordMatch[1];
+                  const lng = coordMatch[2];
+                  const label = encodeURIComponent(placeName || 'Lokasi Acara');
+
+                  if (isIOS) {
+                    // comgooglemaps:// is the native scheme — Google Maps app handles it correctly
+                    // Fallback to Apple Maps after 500ms if app not installed
+                    window.location.href = `comgooglemaps://?q=${lat},${lng}&zoom=15`;
+                    setTimeout(() => {
+                      window.open(`https://maps.apple.com/?q=${lat},${lng}&ll=${lat},${lng}`, '_blank');
+                    }, 600);
+                  } else if (isAndroid) {
+                    // geo: URI is handled natively by any Maps app on Android
+                    window.location.href = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+                  } else {
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }
+                } else if (placeName) {
+                  // No coordinates found — use place name to search directly via native scheme
+                  // This AVOIDS Universal Link interception (maps.app.goo.gl → Maps app rejection)
+                  const encodedPlace = encodeURIComponent(placeName);
+
+                  if (isIOS) {
+                    window.location.href = `comgooglemaps://?q=${encodedPlace}`;
+                    setTimeout(() => {
+                      window.open(`https://maps.apple.com/?q=${encodedPlace}`, '_blank');
+                    }, 600);
+                  } else if (isAndroid) {
+                    window.location.href = `geo:0,0?q=${encodedPlace}`;
+                  } else {
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${encodedPlace}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }
                 } else {
+                  // Last resort: open raw URL in new tab (desktop or unknown device)
                   window.open(rawUrl, '_blank', 'noopener,noreferrer');
                 }
               }}
-              style={{ 
+              style={{
                 marginTop: '8px',
                 display: 'flex',
                 alignItems: 'center',
