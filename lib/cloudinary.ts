@@ -25,24 +25,27 @@ export const uploadToCloudinary = async (
   mimeType: string = "image/jpeg"
 ) => {
   const start = Date.now();
-  console.log(`DEBUG: Start Cloudinary Base64 upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB, type: ${mimeType}...`);
+  console.log(`DEBUG: Start Cloudinary stream upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB, type: ${mimeType}...`);
 
-  const fileBase64 = fileBuffer.toString("base64");
-  // Use the actual MIME type so Cloudinary identifies the format correctly (PNG, WEBP, JPEG, etc.)
-  const dataUrl = `data:${mimeType};base64,${fileBase64}`;
-
-  try {
-    const result = await cloudinary.uploader.upload(dataUrl, {
-      folder,
-      resource_type: resourceType,
-      timeout: 300000, // 5 minutes
-    });
-    console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
-    return result;
-  } catch (error: any) {
-    console.error(`DEBUG: Cloudinary SDK Error after ${Date.now() - start}ms:`, JSON.stringify(error, null, 2));
-    throw error;
-  }
+  return new Promise<any>((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: resourceType,
+        timeout: 300000,
+      },
+      (error, result) => {
+        if (error) {
+          console.error(`DEBUG: Cloudinary stream error after ${Date.now() - start}ms:`, error);
+          reject(error);
+        } else {
+          console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
+          resolve(result);
+        }
+      }
+    );
+    uploadStream.end(fileBuffer);
+  });
 };
 
 export default cloudinary;
