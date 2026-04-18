@@ -1,0 +1,10 @@
+{
+  "/api/settings/route": "app/api/settings/route.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js",
+  "/api/mandiri/kegiatan/route": "app/api/mandiri/kegiatan/route.js",
+  "/api/profile/route": "app/api/profile/route.js",
+  "/api/mandiri/absensi/route": "app/api/mandiri/absensi/route.js",
+  "/login/page": "app/login/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/mandiri/absensi/page": "app/(dashboard)/mandiri/absensi/page.js"
+}
