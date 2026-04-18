@@ -25,27 +25,27 @@ export const uploadToCloudinary = async (
   mimeType: string = "image/jpeg"
 ) => {
   const start = Date.now();
-  console.log(`DEBUG: Start Cloudinary stream upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB, type: ${mimeType}...`);
 
-  return new Promise<any>((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: resourceType,
-        timeout: 300000,
-      },
-      (error, result) => {
-        if (error) {
-          console.error(`DEBUG: Cloudinary stream error after ${Date.now() - start}ms:`, error);
-          reject(error);
-        } else {
-          console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
-          resolve(result);
-        }
-      }
-    );
-    uploadStream.end(fileBuffer);
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw new Error("File buffer kosong atau tidak valid");
+  }
+
+  // Selalu pakai image/jpeg untuk gambar agar data URL valid di Cloudinary
+  const safeMime = resourceType === "video" ? mimeType : "image/jpeg";
+
+  console.log(`DEBUG: Cloudinary upload start — folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB, mime: ${safeMime}`);
+
+  const base64 = fileBuffer.toString("base64");
+  const dataUrl = `data:${safeMime};base64,${base64}`;
+
+  const result = await cloudinary.uploader.upload(dataUrl, {
+    folder,
+    resource_type: resourceType,
+    timeout: 300000,
   });
+
+  console.log(`DEBUG: Cloudinary upload success in ${Date.now() - start}ms`);
+  return result;
 };
 
 export default cloudinary;
