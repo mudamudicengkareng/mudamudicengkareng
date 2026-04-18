@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import Link from "next/link";
+import { Calendar, Clock, MapPin, ExternalLink } from "lucide-react";
 
 interface Desa { id: number; nama: string; kota: string; }
 interface Kelompok { id: number; nama: string; }
@@ -148,6 +149,140 @@ export default function MandiriDaftarPage() {
       }
       return part;
     });
+  };
+
+  const renderEnhancedDescription = (text: string) => {
+    if (!text) return null;
+
+    // Check if it contains our markers
+    const markers = ["Tanggal Acara :", "Waktu Acara :", "Tempat Acara :"];
+    const hasMarkers = markers.some(m => text.includes(m));
+
+    if (!hasMarkers) {
+      return (
+        <div style={{ fontSize: "14px", color: "var(--text-muted)", lineHeight: "1.6", padding: "0 10px" }}>
+          {renderTextWithLinks(text)}
+        </div>
+      );
+    }
+
+    let mainText = text;
+    let firstMarkerIndex = -1;
+    markers.forEach(m => {
+      const idx = text.indexOf(m);
+      if (idx !== -1 && (firstMarkerIndex === -1 || idx < firstMarkerIndex)) {
+        firstMarkerIndex = idx;
+      }
+    });
+
+    if (firstMarkerIndex !== -1) {
+      mainText = text.substring(0, firstMarkerIndex).trim();
+    }
+
+    // Extracting details using regex
+    const dateMatch = text.match(/Tanggal Acara\s*:\s*(.*?)(?=\s*(?:Waktu Acara|Tempat Acara|https?:\/\/|$))/);
+    const timeMatch = text.match(/Waktu Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Tempat Acara|https?:\/\/|$))/);
+    const placeMatch = text.match(/Tempat Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Waktu Acara|https?:\/\/|$))/);
+    const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
+
+    const details = [];
+    if (dateMatch) details.push({ icon: Calendar, label: "Tanggal", value: dateMatch[1].trim() });
+    if (timeMatch) details.push({ icon: Clock, label: "Waktu", value: timeMatch[1].trim() });
+    if (placeMatch) details.push({ icon: MapPin, label: "Tempat", value: placeMatch[1].trim() });
+
+    return (
+      <div style={{ textAlign: 'left' }}>
+        <p style={{ 
+          fontSize: "14px", 
+          color: "var(--text-muted)", 
+          lineHeight: "1.6", 
+          padding: "0 10px", 
+          textAlign: 'center',
+          marginBottom: '20px' 
+        }}>
+          {mainText}
+        </p>
+        
+        <div style={{ 
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', 
+          borderRadius: '20px', 
+          padding: '20px', 
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          margin: '0 10px'
+        }}>
+          {details.map((item, i) => (
+            <div key={i} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+              <div style={{ 
+                background: '#eff6ff', 
+                padding: '10px', 
+                borderRadius: '12px', 
+                color: '#3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.1)'
+              }}>
+                <item.icon size={18} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ 
+                  fontSize: '11px', 
+                  fontWeight: '800', 
+                  color: '#94a3b8', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.5px',
+                  marginBottom: '2px', 
+                  marginTop: 0 
+                }}>
+                  {item.label}
+                </p>
+                <p style={{ 
+                  fontSize: '14px', 
+                  color: '#1e293b', 
+                  fontWeight: '600', 
+                  margin: 0,
+                  lineHeight: '1.4'
+                }}>
+                  {item.value}
+                </p>
+              </div>
+            </div>
+          ))}
+          
+          {urlMatch && (
+            <a 
+              href={urlMatch[1]} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ 
+                marginTop: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: '#3b82f6',
+                color: 'white',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                fontSize: '14px',
+                fontWeight: '700',
+                textDecoration: 'none',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+              onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
+            >
+              <ExternalLink size={16} /> Lihat Lokasi di Maps
+            </a>
+          )}
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -393,14 +528,7 @@ export default function MandiriDaftarPage() {
             {regTitle || ""}
           </h2>
           {regDesc ? (
-            <div style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              lineHeight: "1.6",
-              padding: "0 10px"
-            }}>
-              {renderTextWithLinks(regDesc)}
-            </div>
+            renderEnhancedDescription(regDesc)
           ) : (
             <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
 
