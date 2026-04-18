@@ -11,6 +11,56 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
+function RoomTimer({ startTime }: { startTime: string }) {
+    const [timeLeft, setTimeLeft] = useState<string>("");
+    const [isOver, setIsOver] = useState(false);
+
+    useEffect(() => {
+        const calculateTime = () => {
+            if (!startTime) return;
+            
+            // SQLite datetime('now') returns "YYYY-MM-DD HH:mm:ss" in UTC
+            // We need to format it to "YYYY-MM-DDTHH:mm:ssZ" for JS to parse it reliably as UTC
+            const isoString = startTime.includes(' ') 
+                ? startTime.replace(' ', 'T') + 'Z' 
+                : startTime;
+            
+            const start = new Date(isoString).getTime();
+            const now = new Date().getTime();
+            
+            // Adjust for possible timezone difference if needed, but usually datetime('now') in SQLite matches system
+            // 15 minutes in milliseconds
+            const limit = 15 * 60 * 1000;
+            const elapsed = now - start;
+            const remaining = limit - elapsed;
+
+            if (remaining <= 0) {
+                setIsOver(true);
+                const overTime = Math.abs(remaining);
+                const mins = Math.floor(overTime / 60000);
+                const secs = Math.floor((overTime % 60000) / 1000);
+                setTimeLeft(`Lewat: ${mins}:${secs.toString().padStart(2, '0')}`);
+            } else {
+                setIsOver(false);
+                const mins = Math.floor(remaining / 60000);
+                const secs = Math.floor((remaining % 60000) / 1000);
+                setTimeLeft(`${mins}:${secs.toString().padStart(2, '0')}`);
+            }
+        };
+
+        calculateTime();
+        const timer = setInterval(calculateTime, 1000);
+        return () => clearInterval(timer);
+    }, [startTime]);
+
+    return (
+        <div className={`room-timer-badge ${isOver ? 'over' : ''}`}>
+            <Timer size={12} />
+            <span>{timeLeft}</span>
+        </div>
+    );
+}
+
 export default function RomanticRoomPage() {
     const [loading, setLoading] = useState(true);
     const [myProfile, setMyProfile] = useState<any>(null);
@@ -527,6 +577,9 @@ export default function RomanticRoomPage() {
                                 <div key={room.id} className={`room-tile ${room.status?.toLowerCase()}`}>
                                     <div className="room-top">
                                         <span className="room-name">{room.nama}</span>
+                                        {room.status === "Terisi" && room.updatedAt && (
+                                            <RoomTimer startTime={room.updatedAt} />
+                                        )}
                                         <button className="btn-delete-room" onClick={() => handleDeleteRoom(room.id)}>
                                             <Trash2 size={14} />
                                         </button>
@@ -728,6 +781,55 @@ export default function RomanticRoomPage() {
                     }
                     .result-badge.badge-success { background: #16a34a; }
                     .result-badge.badge-danger { background: #dc2626; }
+
+                    .room-timer-badge {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        background: #f1f5f9;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 10px;
+                        font-weight: 800;
+                        color: #1e293b;
+                        border: 1px solid #e2e8f0;
+                    }
+                    .room-timer-badge.over {
+                        background: #fef2f2;
+                        color: #ef4444;
+                        border-color: #fecdd3;
+                        animation: pulse 1s infinite;
+                    }
+                    @keyframes pulse {
+                        0% { opacity: 1; }
+                        50% { opacity: 0.5; }
+                        100% { opacity: 1; }
+                    }
+
+                    .user-timer-wrapper {
+                        margin-top: 15px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                    .user-timer-wrapper :global(.room-timer-badge) {
+                        font-size: 24px;
+                        padding: 10px 25px;
+                        border-radius: 12px;
+                        gap: 10px;
+                    }
+                    .user-timer-wrapper :global(.room-timer-badge svg) {
+                        width: 24px;
+                        height: 24px;
+                    }
+                    .timer-label {
+                        font-size: 11px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        color: #64748b;
+                    }
                 `}</style>
             </div>
         );
@@ -741,6 +843,12 @@ export default function RomanticRoomPage() {
                 <header className="room-header">
                     <h1>Romantic <span>Room</span> <Sparkles size={24} color="#f43f5e" /></h1>
                     <p>Selamat! Anda telah masuk ke ruangan <b>{myRoom.nama}</b></p>
+                    {myRoom.updatedAt && (
+                        <div className="user-timer-wrapper">
+                            <RoomTimer startTime={myRoom.updatedAt} />
+                            <span className="timer-label">Sisa Waktu Sesi</span>
+                        </div>
+                    )}
                 </header>
 
                 <div className="room-card">

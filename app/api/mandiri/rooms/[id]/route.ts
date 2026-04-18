@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { mandiriRooms, mandiriPemilihan, mandiriKunjungan } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import crypto from "crypto";
 
@@ -54,7 +54,8 @@ export async function PATCH(
             await db.update(mandiriRooms)
                 .set({ 
                     pemilihanId, 
-                    status: "Terisi" 
+                    status: "Terisi",
+                    updatedAt: sql`(datetime('now'))`
                 })
                 .where(eq(mandiriRooms.id, roomId));
 
@@ -81,7 +82,8 @@ export async function PATCH(
             await db.update(mandiriRooms)
                 .set({ 
                     pemilihanId: null, 
-                    status: "Kosong" 
+                    status: "Kosong",
+                    updatedAt: sql`(datetime('now'))`
                 })
                 .where(eq(mandiriRooms.id, roomId));
 

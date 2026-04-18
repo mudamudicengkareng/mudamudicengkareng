@@ -252,6 +252,7 @@ export const mandiriRooms = sqliteTable("mandiri_rooms", {
   pemilihanId: text("pemilihan_id").references(() => mandiriPemilihan.id, { onDelete: "set null" }), 
   status: text("status", { enum: ["Kosong", "Terisi"] }).default("Kosong"),
   createdAt: text("created_at").default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`),
 });
 
 export const mandiriKuisioner = sqliteTable("mandiri_kuisioner", {

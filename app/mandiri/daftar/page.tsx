@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import Link from "next/link";
 import { Calendar, Clock, MapPin, ExternalLink } from "lucide-react";
+import PhotoUpload from "@/components/mandiri/PhotoUpload";
+
 
 interface Desa { id: number; nama: string; kota: string; }
 interface Kelompok { id: number; nama: string; }
@@ -35,7 +37,7 @@ export default function MandiriDaftarPage() {
   const [kotaList, setKotaList] = useState<string[]>([]);
   const [selectedKota, setSelectedKota] = useState("");
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
+
   const [success, setSuccess] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isClosed, setIsClosed] = useState(false);
@@ -44,8 +46,7 @@ export default function MandiriDaftarPage() {
   const [regDesc, setRegDesc] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [siteLogo, setSiteLogo] = useState<string | null>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -93,52 +94,6 @@ export default function MandiriDaftarPage() {
     });
   }, []);
 
-  const startCamera = async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      setStream(s);
-      setIsCameraOpen(true);
-    } catch (err) {
-      Swal.fire({ icon: "error", title: "Kamera Tidak Diakses", text: "Mohon izinkan akses kamera untuk mengambil foto." });
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    setIsCameraOpen(false);
-  };
-
-  const capturePhoto = async () => {
-    const video = document.getElementById("camera-preview") as HTMLVideoElement;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      setUploading(true);
-      stopCamera();
-
-      const fd = new FormData();
-      fd.append("file", new File([blob], "capture.jpg", { type: "image/jpeg" }));
-
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const json = await res.json();
-        if (json.url) setForm({ ...form, foto: json.url });
-      } catch (err) {
-        Swal.fire({ icon: "error", title: "Upload Gagal", text: "Terjadi kesalahan saat mengunggah foto." });
-      } finally {
-        setUploading(false);
-      }
-    }, "image/jpeg", 0.9);
-  };
 
   const renderTextWithLinks = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -599,79 +554,11 @@ export default function MandiriDaftarPage() {
         <form onSubmit={handleSubmit}>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <div className="form-group" style={{ textAlign: "center" }}>
-              <div style={{ width: 120, height: 120, borderRadius: "50%", background: "#f1f5f9", margin: "0 auto 16px", overflow: "hidden", border: "2px solid #e2e8f0", position: "relative" }}>
-                {form.foto ? <img src={form.foto} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ fontSize: "48px", marginTop: "24px" }}>👤</div>}
-                {uploading && (
-                  <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div className="spinner" style={{ width: 24, height: 24 }}></div>
-                  </div>
-                )}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px", marginBottom: "12px" }}>
-                <button type="button" className="btn btn-sm btn-secondary" onClick={startCamera}>
-                  📷 Ambil Foto
-                </button>
-                <label className="btn btn-sm btn-secondary" style={{ cursor: "pointer", margin: 0 }}>
-                  📁 Upload File
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
-                    capture="user"
-                    disabled={uploading}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-
-                      // Client-side validation
-                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
-                      if (!allowedTypes.includes(file.type)) {
-                        Swal.fire({ icon: "error", title: "Format Tidak Didukung", text: "Gunakan file JPG, PNG, atau WEBP." });
-                        return;
-                      }
-                      if (file.size > 20 * 1024 * 1024) {
-                        Swal.fire({ icon: "error", title: "File Terlalu Besar", text: "Ukuran file maksimal 20 MB." });
-                        return;
-                      }
-
-                      setUploading(true);
-                      try {
-                        // Compress image if > 1 MB using canvas
-                        let uploadFile: File = file;
-                        if (file.size > 1 * 1024 * 1024) {
-                          const bitmap = await createImageBitmap(file);
-                          const canvas = document.createElement("canvas");
-                          const MAX_DIM = 1280;
-                          const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
-                          canvas.width = Math.round(bitmap.width * scale);
-                          canvas.height = Math.round(bitmap.height * scale);
-                          canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-                          const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
-                          if (blob) uploadFile = new File([blob], "photo.jpg", { type: "image/jpeg" });
-                        }
-
-                        const fd = new FormData();
-                        fd.append("file", uploadFile);
-                        const res = await fetch("/api/upload", { method: "POST", body: fd });
-                        const json = await res.json();
-                        if (json.url) {
-                          setForm(prev => ({ ...prev, foto: json.url }));
-                        } else {
-                          Swal.fire({ icon: "error", title: "Upload Gagal", text: json.error || "Terjadi kesalahan saat mengunggah foto." });
-                        }
-                      } catch (err: any) {
-                        Swal.fire({ icon: "error", title: "Upload Gagal", text: err.message || "Terjadi kesalahan jaringan." });
-                      } finally {
-                        setUploading(false);
-                        e.target.value = "";
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-              <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "0 auto", maxWidth: "250px" }}>
-                Kirim foto yang terbaik & terbaru, foto bebas, dan muka tampak jelas (tidak tertutup masker)
-              </p>
+              <PhotoUpload 
+                value={form.foto} 
+                onChange={(url) => setForm(prev => ({ ...prev, foto: url }))}
+                helperText="Kirim foto yang terbaik & terbaru, foto bebas, dan muka tampak jelas (tidak tertutup masker)"
+              />
             </div>
 
             <div className="form-group">
@@ -815,32 +702,8 @@ export default function MandiriDaftarPage() {
         </form>
       </div>
 
-      {isCameraOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          background: "rgba(0,0,0,0.9)", zIndex: 9999, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", padding: "20px"
-        }}>
-          <div style={{ position: "relative", width: "100%", maxWidth: "500px", background: "#000", borderRadius: "16px", overflow: "hidden" }}>
-            <video
-              id="camera-preview"
-              autoPlay
-              playsInline
-              ref={(v) => { if (v) v.srcObject = stream; }}
-              style={{ width: "100%", display: "block" }}
-            />
-            <div style={{ position: "absolute", bottom: "20px", left: 0, width: "100%", display: "flex", justifyContent: "center", gap: "16px" }}>
-              <button type="button" className="btn btn-lg btn-primary" onClick={capturePhoto} style={{ borderRadius: "50px", padding: "12px 24px" }}>
-                📸 Capture
-              </button>
-              <button type="button" className="btn btn-lg btn-danger" onClick={stopCamera} style={{ borderRadius: "50px", padding: "12px 24px" }}>
-                Batal
-              </button>
-            </div>
-          </div>
-          <p style={{ color: "#fff", marginTop: "16px", fontSize: "14px" }}>Posisikan wajah Anda di tengah layar</p>
-        </div>
-      )}
+      {/* Removed orphaned camera block */}
     </div>
   );
 }
+

@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
             pemilihanId: mandiriRooms.pemilihanId,
             pengirimNama: g1.nama,
             penerimaNama: g2.nama,
+            updatedAt: mandiriRooms.updatedAt,
         })
         .from(mandiriRooms)
         .leftJoin(mandiriPemilihan, eq(mandiriRooms.pemilihanId, mandiriPemilihan.id))
