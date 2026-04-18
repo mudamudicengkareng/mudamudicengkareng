@@ -224,21 +224,20 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     setPreview(localUrl);
 
     try {
-      console.log(`[Upload] file name: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
-
       if (file.size < 100) {
-        throw new Error(`File terlalu kecil (${file.size} bytes) — kemungkinan canvas gagal render. Coba lagi.`);
+        throw new Error(`[DEBUG] File terlalu kecil: ${file.size} bytes, type: ${file.type}`);
       }
 
-      // Selalu konversi ke JPEG via canvas
       let finalFile: File;
       try {
         finalFile = await toJpegFile(file);
-      } catch {
-        finalFile = file;
+      } catch (e: any) {
+        throw new Error(`[DEBUG] toJpegFile gagal: ${e.message}`);
       }
 
-      console.log(`[Upload] finalFile name: ${finalFile.name}, type: ${finalFile.type}, size: ${finalFile.size} bytes`);
+      if (finalFile.size < 100) {
+        throw new Error(`[DEBUG] finalFile terlalu kecil: ${finalFile.size} bytes`);
+      }
 
       if (finalFile.type !== "image/jpeg") {
         finalFile = new File([finalFile], "photo.jpg", { type: "image/jpeg" });
@@ -263,7 +262,7 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
           timerProgressBar: true,
         });
       } else {
-        throw new Error(json.error || "Gagal mengunggah foto");
+        throw new Error(`[SERVER] ${json.error || "Gagal mengunggah foto"} | details: ${json.details || "-"}`);
       }
     } catch (err: any) {
       console.error("Upload error:", err);
