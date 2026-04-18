@@ -360,14 +360,10 @@ export default function AdminKatalogPage() {
         return;
       }
 
-      const excelData = allParticipants.map((item, index) => ({
-        "No": index + 1,
+      const excelData = allParticipants.map((item) => ({
         "Nama Lengkap": item.nama,
         "Nomor Peserta": item.nomorUrut || "-",
-        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta",
-        "Gender": item.jenisKelamin,
-        "Wilayah": item.mandiriDesaKota || "-",
-        "Desa": item.mandiriDesaNama || item.desaNama || "-"
+        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta"
       }));
 
       const wb = utils.book_new();
@@ -375,13 +371,9 @@ export default function AdminKatalogPage() {
 
       // Set column widths
       const wscols = [
-        { wch: 5 },  // No
         { wch: 30 }, // Nama Lengkap
         { wch: 15 }, // Nomor Peserta
         { wch: 15 }, // Status
-        { wch: 10 }, // Gender
-        { wch: 20 }, // Wilayah
-        { wch: 20 }, // Desa
       ];
       ws['!cols'] = wscols;
 
