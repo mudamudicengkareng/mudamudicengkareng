@@ -6,13 +6,14 @@ const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 // Allowed MIME types for photo uploads
 const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
+  "image/jpeg", "image/jpg", "image/pjpeg",
+  "image/png", "image/x-png",
   "image/webp",
-  "image/heic",
-  "image/heif",
+  "image/heic", "image/heif", "image/heic-sequence",
+  "application/octet-stream" // Fallback for some mobile uploads
 ];
+
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,13 +24,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tidak ada file yang diunggah" }, { status: 400 });
     }
 
-    // Validate MIME type
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Validate MIME type or Extension
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
+    const isAllowedMime = ALLOWED_MIME_TYPES.includes(fileType);
+    const isAllowedExt = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
+
+    if (!isAllowedMime && !isAllowedExt) {
       return NextResponse.json(
-        { error: `Tipe file tidak didukung: ${file.type}. Gunakan JPG, PNG, atau WEBP.` },
+        { error: `Tipe file tidak didukung: ${file.type || "unknown"}. Gunakan JPG, PNG, atau WEBP.` },
         { status: 400 }
       );
     }
+
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);

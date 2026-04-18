@@ -81,17 +81,29 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     if (!file) return;
 
     // Validate format: JPEG, PNG, WEBP, HEIC
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
-    if (!allowedTypes.includes(file.type)) {
+    const allowedTypes = [
+      "image/jpeg", "image/jpg", "image/pjpeg", 
+      "image/png", "image/x-png", 
+      "image/webp", 
+      "image/heic", "image/heif", "image/heic-sequence"
+    ];
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || "";
+    const allowedExts = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+    
+    // Check both mime type and extension as fallback (mobile browsers often lack mime types for some files)
+    const isValid = allowedTypes.includes(file.type) || allowedExts.includes(fileExt);
+
+    if (!isValid) {
       Swal.fire({ 
         icon: "error", 
         title: "Format Tidak Didukung", 
-        text: "Mohon unggah file dengan format JPEG, PNG, WEBP, atau HEIC saja.",
+        text: `Format file ${fileExt.toUpperCase()} tidak didukung. Mohon gunakan JPG, PNG, WEBP, atau HEIC.`,
         confirmButtonColor: "#3b82f6"
       });
       e.target.value = "";
       return;
     }
+
 
 
     // Max 10MB for client-side processing
