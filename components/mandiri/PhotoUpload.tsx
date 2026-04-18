@@ -68,21 +68,38 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
 
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     // Mirror the image if using front camera
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
 
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      stopCamera();
-      uploadFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-    }, "image/jpeg", 0.9);
+    stopCamera();
+
+    // Gunakan toDataURL sebagai metode utama — lebih reliable di Safari mobile
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      const arr = dataUrl.split(",");
+      if (arr.length < 2 || !arr[1]) throw new Error("toDataURL gagal");
+      const bstr = atob(arr[1]);
+      const u8arr = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+      const file = new File([u8arr], "capture.jpg", { type: "image/jpeg" });
+      uploadFile(file);
+    } catch {
+      // Fallback ke toBlob jika toDataURL gagal
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          Swal.fire({ icon: "error", title: "Gagal", text: "Tidak dapat mengambil foto. Coba lagi.", confirmButtonColor: "#3b82f6" });
+          return;
+        }
+        uploadFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
+      }, "image/jpeg", 0.9);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
