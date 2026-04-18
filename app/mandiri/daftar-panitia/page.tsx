@@ -306,17 +306,60 @@ export default function PanitiaDaftarPage() {
                 </button>
                 <label className="btn btn-sm btn-secondary" style={{ cursor: "pointer", margin: 0 }}>
                   📁 Upload File
-                  <input type="file" hidden accept="image/*" disabled={uploading} onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setUploading(true);
-                    const fd = new FormData(); fd.append("file", file);
-                    try {
-                      const res = await fetch("/api/upload", { method: "POST", body: fd });
-                      const json = await res.json();
-                      if (json.url) setForm({ ...form, foto: json.url });
-                    } catch (err) { } finally { setUploading(false); }
-                  }} />
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+                    capture="user"
+                    disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      // Client-side validation
+                      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
+                      if (!allowedTypes.includes(file.type)) {
+                        Swal.fire({ icon: "error", title: "Format Tidak Didukung", text: "Gunakan file JPG, PNG, atau WEBP." });
+                        return;
+                      }
+                      if (file.size > 20 * 1024 * 1024) {
+                        Swal.fire({ icon: "error", title: "File Terlalu Besar", text: "Ukuran file maksimal 20 MB." });
+                        return;
+                      }
+
+                      setUploading(true);
+                      try {
+                        // Compress image if > 1 MB using canvas
+                        let uploadFile: File = file;
+                        if (file.size > 1 * 1024 * 1024) {
+                          const bitmap = await createImageBitmap(file);
+                          const canvas = document.createElement("canvas");
+                          const MAX_DIM = 1280;
+                          const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+                          canvas.width = Math.round(bitmap.width * scale);
+                          canvas.height = Math.round(bitmap.height * scale);
+                          canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                          const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+                          if (blob) uploadFile = new File([blob], "photo.jpg", { type: "image/jpeg" });
+                        }
+
+                        const fd = new FormData();
+                        fd.append("file", uploadFile);
+                        const res = await fetch("/api/upload", { method: "POST", body: fd });
+                        const json = await res.json();
+                        if (json.url) {
+                          setForm(prev => ({ ...prev, foto: json.url }));
+                        } else {
+                          Swal.fire({ icon: "error", title: "Upload Gagal", text: json.error || "Terjadi kesalahan saat mengunggah foto." });
+                        }
+                      } catch (err: any) {
+                        Swal.fire({ icon: "error", title: "Upload Gagal", text: err.message || "Terjadi kesalahan jaringan." });
+                      } finally {
+                        setUploading(false);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
                 </label>
               </div>
             </div>
