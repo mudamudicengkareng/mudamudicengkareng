@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 
-// Allow up to 10 MB uploads on Vercel (default body limit is 4.5 MB)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 // Max file size: 8 MB (in bytes)
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
