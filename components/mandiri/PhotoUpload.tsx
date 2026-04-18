@@ -85,7 +85,8 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
       "image/jpeg", "image/jpg", "image/pjpeg", 
       "image/png", "image/x-png", 
       "image/webp", 
-      "image/heic", "image/heif", "image/heic-sequence"
+      "image/heic", "image/heif", "image/heic-sequence",
+      "application/octet-stream"
     ];
     const fileExt = file.name.split('.').pop()?.toLowerCase() || "";
     const allowedExts = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
@@ -97,7 +98,7 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
       Swal.fire({ 
         icon: "error", 
         title: "Format Tidak Didukung", 
-        text: `Format file ${fileExt.toUpperCase()} tidak didukung. Mohon gunakan JPG, PNG, WEBP, atau HEIC.`,
+        text: `Format file ${fileExt.toUpperCase() || "tersebut"} tidak didukung di browser ini. Mohon gunakan JPG, PNG, atau WEBP.`,
         confirmButtonColor: "#3b82f6"
       });
       e.target.value = "";
@@ -156,13 +157,19 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
 
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
               
-              canvas.toBlob((blob) => {
-                if (blob) {
-                  resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" }));
-                } else {
-                  resolve(file);
-                }
-              }, "image/jpeg", 0.82);
+              try {
+                canvas.toBlob((blob) => {
+                  if (blob) {
+                    const newFileName = (file.name || "photo").replace(/\.[^/.]+$/, "") + ".jpg";
+                    resolve(new File([blob], newFileName, { type: "image/jpeg" }));
+                  } else {
+                    resolve(file);
+                  }
+                }, "image/jpeg", 0.8);
+              } catch (e) {
+                console.error("Canvas toBlob error:", e);
+                resolve(file);
+              }
             };
             
             img.onerror = () => {
@@ -203,10 +210,7 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
       console.error("DEBUG: Upload error full detail:", err);
       setPreview(value || null);
       
-      let errorMessage = err.message || "Terjadi kesalahan saat mengunggah foto.";
-      if (errorMessage.toLowerCase().includes("pattern")) {
-        errorMessage = "Format foto tidak dikenali oleh browser Anda. Silakan coba ambil foto langsung menggunakan kamera atau gunakan file lain.";
-      }
+      const errorMessage = err.message || "Terjadi kesalahan saat mengunggah foto. Silakan coba file lain atau ambil foto langsung.";
 
       Swal.fire({ 
         icon: "error", 
@@ -295,8 +299,6 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
             cursor: "pointer",
             transition: "all 0.2s ease"
           }}
-          onMouseOver={(e) => (e.currentTarget.style.background = "#dbeafe")}
-          onMouseOut={(e) => (e.currentTarget.style.background = "#eff6ff")}
         >
           <Camera size={18} /> Ambil Foto
         </button>
@@ -329,7 +331,7 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
           type="file" 
           ref={fileInputRef} 
           hidden 
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" 
+          accept="image/*" 
           onChange={handleFileChange}
         />
       </div>
@@ -456,7 +458,8 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
         }
         @media (max-width: 768px) {
           .btn-camera {
-            display: none !important;
+            /* Enable camera on mobile if needed, or keep hidden if using native capture */
+            display: flex !important;
           }
         }
       `}</style>
