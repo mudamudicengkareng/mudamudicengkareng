@@ -21,13 +21,14 @@ cloudinary.config({
 export const uploadToCloudinary = async (
   fileBuffer: Buffer,
   folder: string = "jb2-id",
-  resourceType: "auto" | "image" | "video" | "raw" = "auto"
+  resourceType: "auto" | "image" | "video" | "raw" = "auto",
+  mimeType: string = "image/jpeg"
 ) => {
   const start = Date.now();
-  console.log(`DEBUG: Start Cloudinary Base64 upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB...`);
+  console.log(`DEBUG: Start Cloudinary Base64 upload to folder: ${folder}, size: ${(fileBuffer.length / 1024).toFixed(2)} KB, mime: ${mimeType}...`);
 
   const fileBase64 = fileBuffer.toString("base64");
-  const dataUrl = `data:image/jpeg;base64,${fileBase64}`;
+  const dataUrl = `data:${mimeType};base64,${fileBase64}`;
 
   try {
     const result = await cloudinary.uploader.upload(dataUrl, {

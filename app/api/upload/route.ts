@@ -12,13 +12,14 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB`);
+    const mimeType = file.type || "image/jpeg";
+    console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB, mime: ${mimeType}`);
 
     // Determine resource type based on mime type
     const resourceType = file.type.startsWith("video/") ? "video" : "image";
 
     // Upload to Cloudinary
-    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType);
+    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, mimeType);
 
     return NextResponse.json({ 
       success: true, 
