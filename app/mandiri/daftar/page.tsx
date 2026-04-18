@@ -145,7 +145,18 @@ export default function MandiriDaftarPage() {
     const parts = text.split(urlRegex);
     return parts.map((part, i) => {
       if (part.match(urlRegex)) {
-        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>{part}</a>;
+        const cleanUrl = part.trim().replace(/[.,;]$/, "");
+        return (
+          <a
+            key={i}
+            href={cleanUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#3b82f6", textDecoration: "underline" }}
+          >
+            {cleanUrl}
+          </a>
+        );
       }
       return part;
     });
@@ -184,6 +195,13 @@ export default function MandiriDaftarPage() {
     const timeMatch = text.match(/Waktu Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Tempat Acara|https?:\/\/|$))/);
     const placeMatch = text.match(/Tempat Acara\s*:\s*(.*?)(?=\s*(?:Tanggal Acara|Waktu Acara|https?:\/\/|$))/);
     const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
+    let mapsUrl = urlMatch ? urlMatch[1].trim().replace(/[.,;]$/, "") : null;
+
+    // Fallback: If no URL is found in the text but "Tempat Acara" exists, create a search link
+    if (!mapsUrl && placeMatch) {
+      mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeMatch[1].trim())}`;
+    }
+
 
     const details = [];
     if (dateMatch) details.push({ icon: Calendar, label: "Tanggal", value: dateMatch[1].trim() });
@@ -253,9 +271,9 @@ export default function MandiriDaftarPage() {
             </div>
           ))}
           
-          {urlMatch && (
+          {mapsUrl && (
             <a 
-              href={urlMatch[1]} 
+              href={mapsUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               style={{ 
