@@ -49,16 +49,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB, type: ${file.type}`);
+    // Validasi buffer tidak kosong
+    if (buffer.length < 100) {
+      return NextResponse.json(
+        { error: `File terlalu kecil atau corrupt (${buffer.length} bytes). Coba ambil foto ulang.` },
+        { status: 400 }
+      );
+    }
 
-    // Determine resource type based on mime type
+    console.log(`DEBUG: Received file — name: ${file.name}, type: ${file.type}, size: ${(buffer.length / 1024).toFixed(2)} KB`);
+
+    // Cek magic bytes untuk memastikan ini benar-benar JPEG
+    const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8;
+    const isPng  = buffer[0] === 0x89 && buffer[1] === 0x50;
+    const isWebp = buffer.slice(8, 12).toString() === "WEBP";
+    console.log(`DEBUG: Magic bytes check — JPEG: ${isJpeg}, PNG: ${isPng}, WEBP: ${isWebp}`);
+
     const resourceType = file.type.startsWith("video/") ? "video" : "image";
-
-    // Paksa mimeType ke image/jpeg untuk non-video agar Cloudinary tidak menolak format HEIC/unknown
-    const safeMimeType = resourceType === "video" ? file.type : "image/jpeg";
-
-    // Upload to Cloudinary
-    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, safeMimeType);
+    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, "image/jpeg");
 
     return NextResponse.json({
       success: true,
