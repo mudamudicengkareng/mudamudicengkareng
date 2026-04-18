@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const mimeType = file.type || "image/jpeg";
+    const mimeType = file.type || "image/jpeg/jpg";
     console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB, mime: ${mimeType}`);
 
     // Determine resource type based on mime type
@@ -21,16 +21,16 @@ export async function POST(request: NextRequest) {
     // Upload to Cloudinary
     const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, mimeType);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       url: result.secure_url,
       public_id: result.public_id
     });
   } catch (error: any) {
     console.error("Cloudinary upload error details:", error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: "Gagal mengupload file ke Cloudinary: " + (error.message || "Unknown error"),
-      details: error.stack 
+      details: error.stack
     }, { status: 500 });
   }
 }
