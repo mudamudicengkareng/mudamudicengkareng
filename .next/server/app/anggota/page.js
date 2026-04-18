@@ -1,0 +1,40 @@
+(()=>{var e={};e.id=2146,e.ids=[2146],e.modules={72934:e=>{"use strict";e.exports=require("next/dist/client/components/action-async-storage.external.js")},54580:e=>{"use strict";e.exports=require("next/dist/client/components/request-async-storage.external.js")},45869:e=>{"use strict";e.exports=require("next/dist/client/components/static-generation-async-storage.external.js")},20399:e=>{"use strict";e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},84629:e=>{"use strict";e.exports=import("@libsql/client")},72254:e=>{"use strict";e.exports=require("node:buffer")},6005:e=>{"use strict";e.exports=require("node:crypto")},47261:e=>{"use strict";e.exports=require("node:util")},77948:(e,r,a)=>{"use strict";a.a(e,async(e,t)=>{try{a.r(r),a.d(r,{GlobalError:()=>l.a,__next_app__:()=>u,originalPathname:()=>x,pages:()=>g,routeModule:()=>f,tree:()=>c});var s=a(74338);a(78256),a(46182),a(35866);var o=a(23191),i=a(88716),n=a(37922),l=a.n(n),d=a(95231),m={};for(let e in d)0>["default","tree","pages","GlobalError","originalPathname","__next_app__","routeModule"].indexOf(e)&&(m[e]=()=>d[e]);a.d(r,m);var p=e([s]);s=(p.then?(await p)():p)[0];let c=["",{children:["anggota",{children:["__PAGE__",{},{page:[()=>Promise.resolve().then(a.bind(a,74338)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\anggota\\page.tsx"]}]},{}]},{layout:[()=>Promise.resolve().then(a.bind(a,78256)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\layout.tsx"],loading:[()=>Promise.resolve().then(a.bind(a,46182)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\loading.tsx"],"not-found":[()=>Promise.resolve().then(a.t.bind(a,35866,23)),"next/dist/client/components/not-found-error"]}],g=["C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\anggota\\page.tsx"],x="/anggota/page",u={require:a,loadChunk:()=>Promise.resolve()},f=new o.AppPageRouteModule({definition:{kind:i.x.APP_PAGE,page:"/anggota/page",pathname:"/anggota",bundlePath:"",filename:"",appPaths:[]},userland:{loaderTree:c}});t()}catch(e){t(e)}})},99496:(e,r,a)=>{Promise.resolve().then(a.bind(a,70102)),Promise.resolve().then(a.bind(a,56872))},74338:(e,r,a)=>{"use strict";a.a(e,async(e,t)=>{try{a.r(r),a.d(r,{default:()=>x});var s=a(19510),o=a(9487),i=a(49033),n=a(57745),l=a(81445),d=a(53997),m=a(67030),p=a(90455),c=e([o]);async function g(){try{return await o.db.select({id:i.users.id,name:i.users.name,role:i.users.role,foto:i.generus.foto,desaNama:i.desa.nama,kelompokNama:i.kelompok.nama}).from(i.users).leftJoin(i.generus,(0,n.eq)(i.users.generusId,i.generus.id)).leftJoin(i.desa,(0,n.eq)(i.users.desaId,i.desa.id)).leftJoin(i.kelompok,(0,n.eq)(i.users.kelompokId,i.kelompok.id)).where((0,n.d3)(i.users.role,["admin","desa","kelompok","creator","generus"])).orderBy((0,l.C)(i.users.createdAt))}catch(e){return console.error("Error fetching members:",e),[]}}async function x(){let e=await (0,p.Gg)(),r=await g();return(0,s.jsxs)(s.Fragment,{children:[s.jsx("style",{children:`
+        body { background: #fdfdfd; font-family: 'Inter', sans-serif; color: #1e293b; }
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+        .page-header { background: linear-gradient(135deg, #0f172a, #1e293b); padding: 80px 0; border-bottom: 4px solid #2563eb; color: #fff; text-align: center; }
+        .page-title { font-family: 'Merriweather', serif; font-size: 48px; font-weight: 900; color: #fff; margin-bottom: 16px; letter-spacing: -0.02em; }
+        .page-subtitle { font-size: 18px; color: rgba(255,255,255,0.7); max-width: 700px; margin: 0 auto; line-height: 1.6; font-weight: 400; }
+        
+        .members-sec { padding: 80px 0; }
+        .members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px; }
+        .member-card { 
+          background: #fff; border-radius: 24px; padding: 32px; text-align: center; 
+          border: 1px solid #f1f5f9; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+          position: relative;
+          display: flex; flex-direction: column; height: 100%;
+        }
+        .member-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1); border-color: #2563eb; }
+        
+        .member-avatar { 
+          width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #f1f5f9, #e2e8f0); 
+          margin: 0 auto 24px; display: flex; align-items: center; justify-content: center;
+          font-size: 36px; font-weight: 900; color: #94a3b8; border: 4px solid #fff; box-shadow: 0 10px 20px -5px rgba(0,0,0,0.1);
+          overflow: hidden; flex-shrink: 0;
+        }
+        .member-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .member-name { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 8px; line-height: 1.3; }
+        .member-role { 
+          font-size: 11px; font-weight: 800; color: #2563eb; text-transform: uppercase; 
+          letter-spacing: 1px; margin-bottom: 20px; background: #eff6ff; padding: 4px 12px; border-radius: 100px; width: fit-content; margin-left: auto; margin-right: auto;
+        }
+        .member-info { margin-top: auto; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px; }
+        .member-loc { font-size: 13px; font-weight: 600; color: #64748b; }
+        .member-loc-val { color: #0f172a; font-weight: 700; }
+        
+        @media (max-width: 640px) {
+          .members-grid { grid-template-columns: 1fr; }
+          .page-title { font-size: 36px; }
+        }
+      `}),s.jsx(d.Z,{session:e}),s.jsx(m.Z,{}),s.jsx("div",{className:"page-header",children:(0,s.jsxs)("div",{className:"wrap",children:[s.jsx("h1",{className:"page-title",children:"Profil Anggota"}),s.jsx("p",{className:"page-subtitle",children:"Daftar pengurus dan anggota komunitas Jakarta Barat 2 yang berkontribusi dalam membangun kemajuan bersama."})]})}),s.jsx("div",{className:"members-sec",children:s.jsx("div",{className:"wrap",children:r.length>0?s.jsx("div",{className:"members-grid",children:r.map(e=>(0,s.jsxs)("div",{className:"member-card",children:[s.jsx("div",{className:"member-avatar",children:e.foto?s.jsx("img",{src:e.foto,alt:e.name}):e.name.split(" ").filter(e=>e.length>0).map(e=>e[0].toUpperCase()).slice(0,2).join("")||"?"}),s.jsx("div",{className:"member-name",children:e.name}),(0,s.jsxs)("div",{className:"member-role",children:["admin"===e.role&&"Administrator","desa"===e.role&&"Pengurus Desa","kelompok"===e.role&&"Pengurus Kelompok","creator"===e.role&&"Kontributor","generus"===e.role&&"Generasi Penerus",("pending"===e.role||!e.role)&&"Member"]}),(0,s.jsxs)("div",{className:"member-info",children:[(0,s.jsxs)("div",{className:"member-loc",children:["Desa: ",s.jsx("span",{className:"member-loc-val",children:e.desaNama||"Umum"})]}),e.kelompokNama&&(0,s.jsxs)("div",{className:"member-loc",children:["Kelompok: ",s.jsx("span",{className:"member-loc-val",children:e.kelompokNama})]})]})]},e.id))}):(0,s.jsxs)("div",{style:{textAlign:"center",padding:"100px 0",opacity:.5},children:[s.jsx("div",{style:{fontSize:64,marginBottom:20},children:"\uD83D\uDC65"}),s.jsx("p",{style:{fontSize:20,fontWeight:700},children:"Belum ada data anggota yang tersedia."})]})})}),s.jsx("footer",{style:{background:"#0f172a",padding:"60px 0",color:"rgba(255,255,255,0.4)",textAlign:"center"},children:(0,s.jsxs)("div",{className:"wrap",children:[s.jsx("div",{style:{fontWeight:800,color:"#fff",fontSize:20,marginBottom:24},children:"JB2.ID"}),s.jsx("p",{children:"\xa9 2026 Jakarta Barat 2 — Semua profil verified oleh sistem."})]})})]})}o=(c.then?(await c)():c)[0],t()}catch(e){t(e)}})}};var r=require("../../webpack-runtime.js");r.C(e);var a=e=>r(r.s=e),t=r.X(0,[9276,7053,8840,2772,434,8712,9487,9044],()=>a(77948));module.exports=t})();

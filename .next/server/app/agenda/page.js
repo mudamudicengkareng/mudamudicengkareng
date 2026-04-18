@@ -1,0 +1,43 @@
+(()=>{var e={};e.id=7922,e.ids=[7922],e.modules={72934:e=>{"use strict";e.exports=require("next/dist/client/components/action-async-storage.external.js")},54580:e=>{"use strict";e.exports=require("next/dist/client/components/request-async-storage.external.js")},45869:e=>{"use strict";e.exports=require("next/dist/client/components/static-generation-async-storage.external.js")},20399:e=>{"use strict";e.exports=require("next/dist/compiled/next-server/app-page.runtime.prod.js")},84629:e=>{"use strict";e.exports=import("@libsql/client")},72254:e=>{"use strict";e.exports=require("node:buffer")},6005:e=>{"use strict";e.exports=require("node:crypto")},47261:e=>{"use strict";e.exports=require("node:util")},46943:(e,a,t)=>{"use strict";t.a(e,async(e,i)=>{try{t.r(a),t.d(a,{GlobalError:()=>d.a,__next_app__:()=>u,originalPathname:()=>x,pages:()=>m,routeModule:()=>h,tree:()=>g});var n=t(83793);t(78256),t(46182),t(35866);var r=t(23191),s=t(88716),o=t(37922),d=t.n(o),l=t(95231),c={};for(let e in l)0>["default","tree","pages","GlobalError","originalPathname","__next_app__","routeModule"].indexOf(e)&&(c[e]=()=>l[e]);t.d(a,c);var p=e([n]);n=(p.then?(await p)():p)[0];let g=["",{children:["agenda",{children:["__PAGE__",{},{page:[()=>Promise.resolve().then(t.bind(t,83793)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\agenda\\page.tsx"]}]},{}]},{layout:[()=>Promise.resolve().then(t.bind(t,78256)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\layout.tsx"],loading:[()=>Promise.resolve().then(t.bind(t,46182)),"C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\loading.tsx"],"not-found":[()=>Promise.resolve().then(t.t.bind(t,35866,23)),"next/dist/client/components/not-found-error"]}],m=["C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\app\\agenda\\page.tsx"],x="/agenda/page",u={require:t,loadChunk:()=>Promise.resolve()},h=new r.AppPageRouteModule({definition:{kind:s.x.APP_PAGE,page:"/agenda/page",pathname:"/agenda",bundlePath:"",filename:"",appPaths:[]},userland:{loaderTree:g}});i()}catch(e){i(e)}})},24717:(e,a,t)=>{Promise.resolve().then(t.bind(t,70102)),Promise.resolve().then(t.bind(t,56872)),Promise.resolve().then(t.t.bind(t,79404,23))},83793:(e,a,t)=>{"use strict";t.a(e,async(e,i)=>{try{t.r(a),t.d(a,{default:()=>u});var n=t(19510),r=t(9487),s=t(49033),o=t(57745),d=t(81445),l=t(57371),c=t(53997),p=t(67030),g=t(90455),m=e([r]);async function x(){try{return await r.db.select({id:s.kegiatan.id,judul:s.kegiatan.judul,deskripsi:s.kegiatan.deskripsi,tanggal:s.kegiatan.tanggal,lokasi:s.kegiatan.lokasi,desaNama:s.desa.nama,kelompokNama:s.kelompok.nama}).from(s.kegiatan).leftJoin(s.desa,(0,o.eq)(s.kegiatan.desaId,s.desa.id)).leftJoin(s.kelompok,(0,o.eq)(s.kegiatan.kelompokId,s.kelompok.id)).orderBy((0,d.C)(s.kegiatan.tanggal))}catch(e){return console.error("Error fetching kegiatan:",e),[]}}async function u(){let e=await (0,g.Gg)(),a=await x();return(0,n.jsxs)(n.Fragment,{children:[n.jsx("style",{children:`
+        body { background: #f8fafc; font-family: 'Inter', sans-serif; color: #1e293b; }
+        .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+        .page-header { background: #fff; padding: 60px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 40px; text-align: center; }
+        .page-title { font-family: 'Merriweather', serif; font-size: 42px; font-weight: 900; color: #0f172a; margin-bottom: 12px; }
+        .page-subtitle { font-size: 16px; color: #64748b; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+        
+        .keg-list { display: flex; flex-direction: column; gap: 24px; margin-bottom: 60px; }
+        .keg-item { 
+          display: flex; background: #fff; border-radius: 20px; overflow: hidden; 
+          border: 1px solid #e2e8f0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .keg-item:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); border-color: #2563eb; }
+        
+        .keg-date-box { 
+          background: #2563eb; color: #fff; width: 120px; flex-shrink: 0; 
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          padding: 20px;
+        }
+        .keg-day { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+        .keg-month { font-size: 14px; font-weight: 700; opacity: 0.9; }
+        .keg-year { font-size: 12px; font-weight: 600; opacity: 0.7; margin-top: 4px; }
+        
+        .keg-content { padding: 32px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .keg-info { display: flex; gap: 16px; font-size: 13px; font-weight: 600; color: #2563eb; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .keg-title { font-family: 'Merriweather', serif; font-size: 24px; font-weight: 800; color: #0f172a; margin-bottom: 14px; line-height: 1.3; }
+        .keg-desc { font-size: 15px; color: #475569; line-height: 1.6; margin-bottom: 20px; }
+        
+        .keg-loc { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #64748b; font-weight: 500; }
+        .keg-loc svg { color: #ef4444; }
+        
+        .empty-state { text-align: center; padding: 100px 20px; background: #fff; border-radius: 24px; border: 2px dashed #e2e8f0; }
+        .empty-icon { font-size: 64px; margin-bottom: 20px; }
+        .empty-text { font-size: 18px; color: #64748b; font-weight: 500; }
+
+        @media (max-width: 640px) {
+          .keg-item { flex-direction: column; }
+          .keg-date-box { width: 100%; flex-direction: row; gap: 12px; padding: 15px; }
+          .keg-content { padding: 24px; }
+          .page-title { font-size: 32px; }
+        }
+      `}),n.jsx(c.Z,{session:e}),n.jsx(p.Z,{}),n.jsx("div",{className:"page-header",children:(0,n.jsxs)("div",{className:"wrap",children:[n.jsx("h1",{className:"page-title",children:"Agenda Kegiatan"}),n.jsx("p",{className:"page-subtitle",children:"Informasi jadwal kegiatan mendatang dan dokumentasi kegiatan terbaru di lingkungan Jakarta Barat 2."})]})}),n.jsx("div",{className:"wrap",children:a.length>0?n.jsx("div",{className:"keg-list",children:a.map(e=>{let a=function(e){let a={day:"?",month:"?",year:"?"};if(!e)return a;try{let t=new Date(e);if(isNaN(t.getTime()))return a;return{day:t.getDate(),month:t.toLocaleDateString("id-ID",{month:"short"}).toUpperCase(),year:t.getFullYear()}}catch{return a}}(e.tanggal);return(0,n.jsxs)("div",{className:"keg-item",children:[(0,n.jsxs)("div",{className:"keg-date-box",children:[n.jsx("span",{className:"keg-day",children:a.day}),n.jsx("span",{className:"keg-month",children:a.month}),n.jsx("span",{className:"keg-year",children:a.year})]}),(0,n.jsxs)("div",{className:"keg-content",children:[(0,n.jsxs)("div",{className:"keg-info",children:[n.jsx("span",{children:e.desaNama||"Umum"}),e.kelompokNama&&(0,n.jsxs)(n.Fragment,{children:[n.jsx("span",{children:"•"}),n.jsx("span",{children:e.kelompokNama})]})]}),n.jsx("h2",{className:"keg-title",children:e.judul}),n.jsx("p",{className:"keg-desc",children:e.deskripsi||"Tidak ada deskripsi tersedia untuk kegiatan ini."}),(0,n.jsxs)("div",{className:"keg-loc",children:[(0,n.jsxs)("svg",{width:"16",height:"16",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2.5",children:[n.jsx("path",{d:"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"}),n.jsx("circle",{cx:"12",cy:"10",r:"3"})]}),e.lokasi||"Lokasi belum ditentukan"]})]})]},e.id)})}):(0,n.jsxs)("div",{className:"empty-state",children:[n.jsx("div",{className:"empty-icon",children:"\uD83D\uDCC5"}),n.jsx("p",{className:"empty-text",children:"Belum ada kegiatan yang terjadwal saat ini."}),n.jsx(l.default,{href:"/",style:{color:"#2563eb",fontWeight:700,marginTop:20,display:"inline-block"},children:"Kembali ke Beranda"})]})}),n.jsx("footer",{style:{background:"#0f172a",padding:"40px 0",color:"rgba(255,255,255,0.4)",textAlign:"center",fontSize:"13px"},children:n.jsx("div",{className:"wrap",children:"\xa9 2026 JB2.ID — Portal Digital Jakarta Barat 2"})})]})}r=(m.then?(await m)():m)[0],i()}catch(e){i(e)}})},57371:(e,a,t)=>{"use strict";t.d(a,{default:()=>n.a});var i=t(670),n=t.n(i)},670:(e,a,t)=>{"use strict";let{createProxy:i}=t(68570);e.exports=i("C:\\Users\\ASUS\\OneDrive\\Documents\\Xampp1\\htdocs\\mudamudicengkareng\\node_modules\\next\\dist\\client\\link.js")}};var a=require("../../webpack-runtime.js");a.C(e);var t=e=>a(a.s=e),i=a.X(0,[9276,7053,8840,2772,434,8712,9487,9044],()=>t(46943));module.exports=i})();
