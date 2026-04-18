@@ -335,7 +335,7 @@ export default function MandiriDaftarPage() {
                 cursor: 'pointer',
                 width: '100%'
               }}
-              onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+              {/* onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'} */}
               onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
             >
               <ExternalLink size={16} /> Lihat Lokasi di Maps
