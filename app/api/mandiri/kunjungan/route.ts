@@ -1,0 +1,94 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { mandiriKunjungan, generus, mandiriPemilihan, mandiriRooms, formPanitiaDanPengurus, mandiri } from "@/lib/schema";
+import { eq, sql, desc, isNotNull, and, or } from "drizzle-orm";
+import { getSession } from "@/lib/auth";
+import crypto from "crypto";
+import { aliasedTable } from "drizzle-orm";
+
+export async function GET(request: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session || !["admin", "admin_romantic_room", "tim_pnkb", "pengurus_daerah", "kmm_daerah"].includes(session.role)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const g1 = aliasedTable(generus, "g1");
+        const g2 = aliasedTable(generus, "g2");
+        const m1 = aliasedTable(mandiri, "m1");
+        const m2 = aliasedTable(mandiri, "m2");
+        const pan1 = aliasedTable(formPanitiaDanPengurus, "pan1");
+        const pan2 = aliasedTable(formPanitiaDanPengurus, "pan2");
+
+        // Get detailed pairing history
+        const history = await db.select({
+            id: mandiriKunjungan.id,
+            roomId: mandiriKunjungan.roomId,
+            roomNama: mandiriRooms.nama,
+            createdAt: mandiriKunjungan.createdAt,
+            // Pemilih (Pengirim)
+            pemilihNomorUrut: m1.nomorUrut,
+            pemilihNama: g1.nama,
+            pemilihStatus: sql<string>`CASE WHEN ${pan1.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
+            pemilihHasil: mandiriPemilihan.hasilPengirim,
+            // Terpilih (Penerima)
+            terpilihNomorUrut: m2.nomorUrut,
+            terpilihNama: g2.nama,
+            terpilihStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
+            terpilihHasil: mandiriPemilihan.hasilPenerima,
+            pemilihanId: mandiriKunjungan.pemilihanId
+        })
+        .from(mandiriKunjungan)
+        .leftJoin(mandiriRooms, eq(mandiriKunjungan.roomId, mandiriRooms.id))
+        .leftJoin(mandiriPemilihan, eq(mandiriKunjungan.pemilihanId, mandiriPemilihan.id))
+        // Join for Pengirim (if selection exists) or the record holder
+        .leftJoin(g1, eq(sql`COALESCE(${mandiriPemilihan.pengirimId}, ${mandiriKunjungan.generusId})`, g1.id))
+        // Join for Penerima (only if selection exists)
+        .leftJoin(g2, eq(mandiriPemilihan.penerimaId, g2.id))
+        // Join Mandiri table to get Nomor Urut (Nomor Peserta based on gender)
+        .leftJoin(m1, eq(g1.id, m1.generusId))
+        .leftJoin(m2, eq(g2.id, m2.generusId))
+        // Panitia Status
+        .leftJoin(pan1, eq(g1.id, pan1.generusId))
+        .leftJoin(pan2, eq(g2.id, pan2.generusId))
+        .where(isNotNull(mandiriKunjungan.pemilihanId))
+        .groupBy(mandiriKunjungan.pemilihanId)
+        .orderBy(desc(mandiriKunjungan.createdAt));
+
+        return NextResponse.json(history);
+    } catch (error) {
+        console.error("GET visit history error:", error);
+        return NextResponse.json({ error: "Gagal mengambil riwayat kunjungan" }, { status: 500 });
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session || !["admin", "admin_romantic_room", "tim_pnkb"].includes(session.role)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { generusId, roomId } = body;
+
+        if (!generusId || !roomId) {
+            return NextResponse.json({ error: "Generus ID dan Room ID wajib diisi" }, { status: 400 });
+        }
+
+        const id = crypto.randomUUID();
+        await db.insert(mandiriKunjungan).values({
+            id,
+            generusId,
+            roomId,
+            createdAt: sql`(datetime('now'))`
+        });
+
+        return NextResponse.json({ success: true, id });
+    } catch (error) {
+        console.error("POST visit error:", error);
+        return NextResponse.json({ error: "Gagal menyimpan kunjungan" }, { status: 500 });
+    }
+}
+
+

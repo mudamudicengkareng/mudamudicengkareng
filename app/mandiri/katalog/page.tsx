@@ -1,0 +1,2734 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import Swal from "sweetalert2";
+import {
+  Sparkles, Search, User, MapPin, Heart, Calendar,
+  GraduationCap, Briefcase, Lock, LogOut, ChevronDown,
+  Settings2, CheckCircle2, UserCheck, Users, Globe, Music, Utensils,
+  X, ShieldCheck, Star, UtilityPole as UtensilsIcon, ArrowLeft, Instagram, Timer, MessageSquare
+} from "lucide-react";
+import Link from "next/link";
+
+export default function PublicKatalogPage() {
+  const [data, setData] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [gender, setGender] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [pendidikan, setPendidikan] = useState("all");
+  const [wilayah, setWilayah] = useState("all");
+  const [desaFilter, setDesaFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [latestActivity, setLatestActivity] = useState<any>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [hasAttended, setHasAttended] = useState(false);
+  const [verifying, setVerifying] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [statusQueue, setStatusQueue] = useState<any>(null);
+  const [pendidikanList, setPendidikanList] = useState<string[]>([]);
+  const [wilayahList, setWilayahList] = useState<any[]>([]);
+  const [desaList, setDesaList] = useState<any[]>([]);
+  const [selections, setSelections] = useState<any[]>([]);
+
+  // Box Love state
+  const [boxLoveStatus, setBoxLoveStatus] = useState<string>("closed");
+  const [isBoxLoveOpen, setIsBoxLoveOpen] = useState(false);
+  const [boxLoveSearch, setBoxLoveSearch] = useState("");
+  const [boxLoveResults, setBoxLoveResults] = useState<any[]>([]);
+  const [boxLoveTarget, setBoxLoveTarget] = useState<any>(null);
+  const [boxLoveLoading, setBoxLoveLoading] = useState(false);
+  const [boxLoveSubmitting, setBoxLoveSubmitting] = useState(false);
+
+  // Komentar state
+  const [komentarNama, setKomentarNama] = useState("");
+  const [komentarAnon, setKomentarAnon] = useState(false);
+  const [submittingKomentar, setSubmittingKomentar] = useState<string | null>(null);
+  const [userComments, setUserComments] = useState<any[]>([]);
+  const [sentComments, setSentComments] = useState<any[]>([]);
+  const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
+  const [hasNewComments, setHasNewComments] = useState(false);
+
+  const fetchUserComments = useCallback(async (userId: string) => {
+    try {
+      // Fetch received comments
+      const resRec = await fetch(`/api/mandiri/komentar?penerimaId=${userId}`);
+      if (resRec.ok) {
+        const data = await resRec.json();
+        setUserComments(data);
+        if (data.length > 0) {
+          localStorage.setItem(`last_seen_comment_${userId}`, data[0].id);
+        }
+      }
+
+      // Fetch sent comments (jejak/histori)
+      const resSent = await fetch(`/api/mandiri/komentar?pengirimId=${userId}`);
+      if (resSent.ok) {
+        const data = await resSent.json();
+        setSentComments(data);
+      }
+    } catch (e) {
+      console.error("Error fetching comments:", e);
+    }
+  }, []);
+
+  const limit = 20;
+
+  useEffect(() => {
+    const saved = localStorage.getItem("mandiri_selections");
+    if (saved) {
+      try { setSelectedIds(JSON.parse(saved)); } catch (e) { }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("mandiri_selections", JSON.stringify(selectedIds));
+  }, [selectedIds]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const storedUnik = localStorage.getItem("attended_nomor_unik");
+      const storedToken = localStorage.getItem("attended_session_token");
+      const params = new URLSearchParams({
+        search,
+        page: String(page),
+        limit: String(limit),
+        jenisKelamin: gender,
+        status: category,
+        pendidikan: pendidikan,
+        mandiriDesaId: wilayah,
+        desaId: desaFilter,
+        nomorUnik: storedUnik || "",
+        sessionToken: storedToken || ""
+      });
+      const res = await fetch(`/api/public/mandiri/katalog?${params}`);
+
+      if (res.status === 403) {
+        setIsLocked(true);
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) throw new Error("Gagal mengambil data");
+
+      const json = await res.json();
+      setData(json.data || []);
+      setTotal(json.total || 0);
+    } catch (e: any) {
+      console.error("fetchData error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, page, gender, category, pendidikan, wilayah, desaFilter]);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const [titleRes, descRes] = await Promise.all([
+          fetch("/api/public/mandiri/settings?key=mandiri_registration_title"),
+          fetch("/api/public/mandiri/settings?key=mandiri_registration_description")
+        ]);
+
+        let title = "KATALOG PESERTA dan PANITIA";
+        let description = "";
+        if (titleRes.ok) {
+          const t = await titleRes.json();
+          if (t.value) title = t.value;
+        }
+        if (descRes.ok) {
+          const d = await descRes.json();
+          if (d.value) description = d.value;
+        }
+        setLatestActivity({ title, description });
+
+        // Fetch education filters
+        const filterRes = await fetch("/api/public/mandiri/filters");
+        if (filterRes.ok) {
+          const filterJson = await filterRes.json();
+          setPendidikanList(filterJson.pendidikan || []);
+          setWilayahList(filterJson.wilayah || []);
+          setDesaList(filterJson.desa || []);
+        }
+
+        // Fetch Box Love status
+        const boxLoveRes = await fetch("/api/mandiri/box-love?action=status");
+        if (boxLoveRes.ok) {
+          const boxLoveJson = await boxLoveRes.json();
+          setBoxLoveStatus(boxLoveJson.value || "closed");
+        }
+
+        const storedUnik = localStorage.getItem("attended_nomor_unik");
+        const storedToken = localStorage.getItem("attended_session_token");
+        let deviceId = localStorage.getItem("mandiri_device_id");
+        if (!deviceId) {
+          deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          localStorage.setItem("mandiri_device_id", deviceId);
+        }
+
+
+
+        if (storedUnik) {
+          const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${storedUnik}${storedToken ? `&sessionToken=${storedToken}` : ""}&deviceId=${deviceId}`);
+          const data = await res.json();
+          if (data.status === "attended") {
+            setHasAttended(true);
+            const userRole = data.role || localStorage.getItem("attended_role") || "Peserta";
+            setCurrentUser({
+              id: data.id,
+              nama: data.nama,
+              nomorUrut: data.nomorUrut,
+              mandiriDesaNama: data.mandiriDesaNama,
+              mandiriDesaKota: data.mandiriDesaKota,
+              jenisKelamin: data.jenisKelamin,
+              role: userRole
+            });
+            setKomentarNama(data.nama);
+            localStorage.setItem("attended_role", userRole);
+
+            // Fetch comments for current user
+            fetchUserComments(data.id);
+
+            // Fetch selection status
+            const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${storedUnik}&token=${storedToken}`);
+            const selJson = await selRes.json();
+            if (Array.isArray(selJson)) {
+              setSelections(selJson);
+              setSelectedIds(selJson.map((s: any) => s.penerimaId));
+              setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
+            }
+          } else if (data.status === "multi_login") {
+            handleLogout(); // Force logout on multi-login
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setVerifying(false);
+      }
+    }
+    init();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchData, 300);
+    return () => clearTimeout(timer);
+  }, [fetchData]);
+
+  const handleSendKomentar = async (penerimaId: string, itemNama: string, komentar: string) => {
+    if (submittingKomentar) return;
+
+    if (sentComments.length > 0) {
+      Swal.fire("Akses Diblokir", "Anda hanya diperbolehkan mengirimkan satu komentar di katalog.", "warning");
+      return;
+    }
+
+    // Confirmation
+    const { isConfirmed } = await Swal.fire({
+      title: `Berikan komentar ${komentar}?`,
+      text: `Anda akan memberikan komentar "${komentar}" untuk ${itemNama}. Setelah dikirim, Anda tidak dapat memberikan komentar lagi ke peserta lain.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Kirim',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#3b82f6',
+    });
+
+    if (!isConfirmed) return;
+
+    setSubmittingKomentar(penerimaId);
+    try {
+      const res = await fetch("/api/mandiri/komentar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          penerimaId,
+          pengirimId: currentUser?.id,
+          pengirimNama: komentarNama,
+          isAnonim: komentarAnon,
+          komentar
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Komentar Anda telah terkirim.",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end'
+        });
+        // Refresh sent comments
+        if (currentUser?.id) fetchUserComments(currentUser.id);
+      } else {
+        Swal.fire("Gagal", result.error || "Gagal mengirim komentar", "error");
+      }
+    } catch (e) {
+      Swal.fire("Error", "Terjadi kesalahan koneksi", "error");
+    } finally {
+      setSubmittingKomentar(null);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("attended_nomor_unik");
+    localStorage.removeItem("attended_session_token");
+    setHasAttended(false);
+    window.location.reload();
+  };
+
+  // Box Love handlers
+  const openBoxLove = () => {
+    setIsBoxLoveOpen(true);
+    setBoxLoveSearch("");
+    setBoxLoveResults([]);
+    setBoxLoveTarget(null);
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeBoxLove = () => {
+    setIsBoxLoveOpen(false);
+    document.body.style.overflow = "auto";
+  };
+
+  const searchBoxLove = async (q: string) => {
+    setBoxLoveSearch(q);
+    if (!q || q.length < 1) { setBoxLoveResults([]); return; }
+    setBoxLoveLoading(true);
+    const nomorUnik = localStorage.getItem("attended_nomor_unik");
+    const token = localStorage.getItem("attended_session_token");
+    // Search opposite gender
+    const oppositeGender = currentUser?.jenisKelamin === "L" ? "P" : "L";
+    try {
+      const res = await fetch(`/api/mandiri/box-love?action=search&q=${encodeURIComponent(q)}&jenisKelamin=${oppositeGender}&nomorUnik=${nomorUnik}&token=${token}`);
+      if (res.ok) {
+        const results = await res.json();
+        setBoxLoveResults(results);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBoxLoveLoading(false);
+    }
+  };
+
+  const handleBoxLoveSubmit = async () => {
+    if (!boxLoveTarget) return;
+    const nomorUnik = localStorage.getItem("attended_nomor_unik");
+    const token = localStorage.getItem("attended_session_token");
+    setBoxLoveSubmitting(true);
+    try {
+      const res = await fetch("/api/mandiri/box-love", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "submit", nomorUnik, token, targetId: boxLoveTarget.id })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal mengirim");
+
+      await Swal.fire({
+        title: "Berhasil Masuk Box Love! 💝",
+        html: `Permintaan Anda ke <b>${boxLoveTarget.nama}</b> telah dikirim ke Daftar Antrean Romantic Room. Admin akan menghubungi Anda segera.`,
+        icon: "success",
+        timer: 4000,
+        showConfirmButton: false
+      });
+
+      closeBoxLove();
+
+      // Refresh selection status
+      const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${nomorUnik}&token=${token}`);
+      const selJson = await selRes.json();
+      if (Array.isArray(selJson)) {
+        setSelections(selJson);
+        setSelectedIds(selJson.map((s: any) => s.penerimaId));
+        setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
+      }
+    } catch (err: any) {
+      Swal.fire("Gagal", err.message, "error");
+    } finally {
+      setBoxLoveSubmitting(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) return prev.filter(i => i !== id);
+      if (prev.length >= 3) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const handleConfirmSelection = async (targetId: string, targetName: string) => {
+    const nomorUnik = localStorage.getItem("attended_nomor_unik");
+    const token = localStorage.getItem("attended_session_token");
+
+    const result = await Swal.fire({
+      title: 'Pilih Peserta?',
+      text: `Apakah Anda yakin ingin memilih ${targetName}? Pilihan ini akan langsung diteruskan ke Romantic Room.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Pilih!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await fetch("/api/mandiri/pilih", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetId,
+            nomorUnik,
+            token
+          })
+        });
+
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Gagal melakukan pemilihan");
+
+        await Swal.fire({
+          title: 'Berhasil!',
+          text: 'Pilihan Anda telah dikirim. Sedang dalam antrean admin Romantic Room.',
+          icon: 'success',
+          timer: 3000,
+          showConfirmButton: false
+        });
+
+        closeDetail(); // Close modal if open
+
+        // Refresh selection status instead of redirecting
+        const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${nomorUnik}&token=${token}`);
+        const selJson = await selRes.json();
+        if (Array.isArray(selJson)) {
+          setSelections(selJson);
+          setSelectedIds(selJson.map((s: any) => s.penerimaId));
+          setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
+        }
+      } catch (err: any) {
+        Swal.fire("Gagal", err.message, "error");
+      }
+    }
+  };
+
+  const totalPages = Math.ceil(total / limit);
+
+  const openDetail = (participant: any) => {
+    setSelectedParticipant(participant);
+    setIsModalOpen(true);
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeDetail = () => {
+    setIsModalOpen(false);
+    document.body.style.overflow = "auto";
+  };
+
+  if (isLocked) {
+    return (
+      <div className="locked-container">
+        <div className="locked-card">
+          <Lock size={48} className="lock-icon" />
+          <h1>Halaman Ditutup</h1>
+          <p>Maaf, halaman saat ini ditutup oleh Admin.</p>
+          <Link href="/" className="home-btn">Kembali ke Beranda</Link>
+        </div>
+        <style jsx>{`
+          .locked-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 20px; }
+          .locked-card { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center; max-width: 400px; border: 1px solid #e2e8f0; }
+          .lock-icon { color: #ef4444; margin-bottom: 20px; }
+          h1 { font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 12px; }
+          p { color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+          .home-btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 700; text-decoration: none; transition: 0.2s; }
+          .home-btn:hover { background: #2563eb; transform: translateY(-2px); }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (verifying) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner-large"></div>
+        <style jsx>{`
+          .loading-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; flex-direction: column; }
+          .spinner-large { width: 50px; height: 50px; border: 5px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (!hasAttended) {
+    return (
+      <div className="login-backdrop">
+        <LoginModal
+          onVerified={(userData) => {
+            setHasAttended(true);
+            setCurrentUser(userData);
+          }}
+        />
+        <style jsx>{`
+          .login-backdrop {
+            min-height: 100vh;
+            background: #f1f5f9;
+            background-image: 
+              radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+              radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  function LoginModal({ onVerified }: { onVerified: (userData: any) => void }) {
+    const [unik, setUnik] = useState("");
+    const [status, setStatus] = useState<"idle" | "verifying" | "error" | "waiting">("idle");
+    const [errorMsg, setErrorMsg] = useState("");
+
+    const verify = async () => {
+      if (!unik) return;
+      setStatus("verifying");
+      let deviceId = localStorage.getItem("mandiri_device_id");
+      if (!deviceId) {
+        deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem("mandiri_device_id", deviceId);
+      }
+
+      try {
+        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorPeserta=${unik}&deviceId=${deviceId}`);
+        const resData = await res.json();
+        if (resData.status === "attended") {
+          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik);
+          localStorage.setItem("attended_session_token", resData.sessionToken);
+          localStorage.setItem("attended_nomor_urut_peserta", resData.nomorUrut);
+          localStorage.setItem("attended_role", resData.role || "Peserta");
+          onVerified({
+            id: resData.id,
+            nama: resData.nama,
+            nomorUrut: resData.nomorUrut,
+            mandiriDesaNama: resData.mandiriDesaNama,
+            mandiriDesaKota: resData.mandiriDesaKota,
+            jenisKelamin: resData.jenisKelamin,
+            role: resData.role || "Peserta"
+          });
+
+          Swal.fire({
+            title: `Selamat Datang, ${resData.nama}!`,
+            text: "Berhasil masuk ke Katalog Peserta.",
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+          });
+        } else if (resData.status === "waiting") {
+          setStatus("waiting");
+          setErrorMsg("Silakan lakukan absensi terlebih dahulu di meja panitia.");
+        } else if (resData.status === "multi_login") {
+          setErrorMsg("Nomor Peserta ini sudah digunakan di perangkat lain (Single Session).");
+          setStatus("error");
+        } else if (resData.status === "not_found") {
+          setErrorMsg("Nomor Peserta tidak ditemukan. Pastikan Anda sudah terdaftar.");
+          setStatus("error");
+        } else {
+          setErrorMsg(resData.error || "Terjadi kesalahan saat verifikasi.");
+          setStatus("error");
+        }
+      } catch (e) {
+        setErrorMsg("Gagal terhubung ke server. Periksa koneksi internet Anda.");
+        setStatus("error");
+      }
+    };
+
+    return (
+      <div className="modal-box">
+        <div className="modal-header">
+          <div className="icon-badge">
+            <Lock size={28} className="text-blue-500" />
+          </div>
+          <h2>Login Katalog</h2>
+          <p>Masukkan Nomor Peserta  dan Nomor Panitia untuk akses penuh</p>
+        </div>
+
+        <div className="modal-body">
+          <div className="input-field">
+            <User size={18} className="input-icon" />
+            <input
+              type="number"
+              placeholder="Contoh: 123"
+              value={unik}
+              onChange={(e) => setUnik(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && verify()}
+              autoFocus
+            />
+          </div>
+
+          <button
+            className={`login-btn ${status === "verifying" ? "loading" : ""}`}
+            onClick={verify}
+            disabled={status === "verifying" || !unik}
+          >
+            {status === "verifying" ? (
+              <span className="flex items-center gap-2">
+                <span className="spinner-small"></span> Memproses...
+              </span>
+            ) : "Masuk Sekarang"}
+          </button>
+
+          {status === "error" && (
+            <div className="error-alert">
+              <ShieldCheck size={16} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {status === "waiting" && (
+            <div className="warning-alert">
+              <Calendar size={16} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <p>Belum punya nomor? <Link href="/mandiri/daftar">Daftar Online</Link></p>
+        </div>
+
+        <style jsx>{`
+          .modal-box {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            animation: modalFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+          @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          .modal-header { text-align: center; margin-bottom: 32px; }
+          .icon-badge {
+            width: 64px;
+            height: 64px;
+            background: #eff6ff;
+            color: #3b82f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            margin: 0 auto 20px;
+            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+          }
+          h2 { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 8px; letter-spacing: -0.025em; }
+          p { color: #64748b; font-size: 15px; }
+          
+          .modal-body { display: flex; flex-direction: column; gap: 20px; }
+          .input-field { position: relative; }
+          .input-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+          input {
+            width: 100%;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            padding: 16px 16px 16px 48px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+            color: #1e293b;
+          }
+          input:focus {
+            background: white;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            outline: none;
+          }
+          
+          .login-btn {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+          }
+          .login-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.4);
+          }
+          .login-btn:active:not(:disabled) { transform: translateY(0); }
+          .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+          .error-alert {
+            padding: 14px;
+            background: #fef2f2;
+            border-radius: 12px;
+            color: #b91c1c;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #fee2e2;
+          }
+          .warning-alert {
+            padding: 14px;
+            background: #fffbeb;
+            border-radius: 12px;
+            color: #92400e;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #fef3c7;
+          }
+
+          .modal-footer { margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 24px; }
+          .modal-footer p { font-size: 14px; color: #64748b; margin: 0; }
+          .modal-footer a { color: #3b82f6; text-decoration: none; font-weight: 700; }
+          .modal-footer a:hover { text-decoration: underline; }
+
+          .spinner-small {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    );
+  }
+
+  const selectedNames = selections.map(item => `${item.penerimaNama} (#${item.penerimaNoUrut || item.penerimaNo})`);
+
+  return (
+    <div className="container">
+
+      {/* HEADER: badge atas -> DATA PESERTA -> Selamat Datang, semua center */}
+      <header className="page-header">
+        <div className="badge-top">
+          <Sparkles size={12} />
+          KATALOG PESERTA
+        </div>
+        <h1>DATA <span>PESERTA</span></h1>
+        <div className="header-actions">
+          <p className="welcome-msg">Selamat datang kembali, {currentUser?.nama || "User"}</p>
+          <button
+            className={`btn-notification ${hasNewComments ? 'has-new' : ''}`}
+            onClick={() => {
+              setIsCommentsModalOpen(true);
+              setHasNewComments(false);
+              if (currentUser?.id) {
+                fetchUserComments(currentUser.id);
+                // We'll update last seen in the fetch success or here after a small delay
+                // but for now, let's just make sure it's fresh
+              }
+            }}
+          >
+            <MessageSquare size={20} />
+            {hasNewComments && <span className="notification-dot"></span>}
+          </button>
+        </div>
+      </header>
+
+      <div className="toolbar">
+        <div className="search-group">
+          <div className="search-bar">
+            <Search size={18} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Cari nama, no. urut, kota, atau desa..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+          <button className="btn-advanced" onClick={() => {
+            setSearch("");
+            setGender("all");
+            setCategory("all");
+            setPendidikan("all");
+            setWilayah("all");
+            setDesaFilter("all");
+            setPage(1);
+          }}>
+            <X size={16} />
+            <span>Reset Filter</span>
+          </button>
+        </div>
+
+        <div className="filter-controls">
+          <div className="toggle-group">
+            <button
+              className={category === "all" ? "active" : ""}
+              onClick={() => { setCategory("all"); setPage(1); }}
+            >
+              Semua
+            </button>
+            <button
+              className={category === "peserta" ? "active" : ""}
+              onClick={() => { setCategory("peserta"); setPage(1); }}
+            >
+              Peserta
+            </button>
+            <button
+              className={category === "panitia" ? "active" : ""}
+              onClick={() => { setCategory("panitia"); setPage(1); }}
+            >
+              Panitia
+            </button>
+          </div>
+
+          <div className="toggle-group">
+            <button className={gender === "all" ? "active" : ""} onClick={() => { setGender("all"); setPage(1); }}>Semua</button>
+            <button className={gender === "L" ? "active" : ""} onClick={() => { setGender("L"); setPage(1); }}>L</button>
+            <button className={gender === "P" ? "active" : ""} onClick={() => { setGender("P"); setPage(1); }}>P</button>
+          </div>
+
+          <div className="select-container">
+            <select
+              className="select-box"
+              value={pendidikan}
+              onChange={(e) => { setPendidikan(e.target.value); setPage(1); }}
+            >
+              <option value="all">Semua Pendidikan</option>
+              {pendidikanList.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="select-arrow" />
+          </div>
+
+          <div className="select-container">
+            <select
+              className="select-box"
+              value={wilayah}
+              onChange={(e) => { setWilayah(e.target.value); setPage(1); }}
+            >
+              <option value="all">Semua Wilayah</option>
+              {wilayahList.map(w => (
+                <option key={w.id} value={w.id}>{w.nama} ({w.kota})</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="select-arrow" />
+          </div>
+
+          <div className="select-container">
+            <select
+              className="select-box"
+              value={desaFilter}
+              onChange={(e) => { setDesaFilter(e.target.value); setPage(1); }}
+            >
+              <option value="all">Semua Desa</option>
+              {desaList.map(d => (
+                <option key={d.id} value={d.id}>{d.nama}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="select-arrow" />
+          </div>
+
+          <div className="status-badge">
+            <Users size={16} />
+            <span>{total} Peserta</span>
+          </div>
+
+          <button className="btn-logout" onClick={handleLogout}>
+            <LogOut size={16} />
+            <span>Keluar</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="selection-banner">
+        <div className="banner-left">
+          <div className="banner-icon">
+            <CheckCircle2 size={24} />
+          </div>
+          <div className="banner-text">
+            <span className="banner-label">PILIHAN SAYA</span>
+            <p className="banner-value">
+              {selectedNames.length > 0 ? selectedNames.join(", ") : "Pilih peserta favorit Anda (Maks. 3)"}
+            </p>
+          </div>
+        </div>
+        <div className="banner-right">
+          <div className={`pilihan-pill ${selectedIds.length >= 3 ? "full" : ""}`}>{selectedIds.length}/3 Terpilih</div>
+        </div>
+      </div>
+
+      <div className="user-title-context">
+        <h3>{currentUser?.nama || "User Profile"}</h3>
+        <div className="user-meta">
+          <span>No. Urut Peserta : {currentUser?.nomorUrut || "-"}</span>
+          {currentUser?.mandiriDesaKota && (
+            <span className="location">@{currentUser?.mandiriDesaKota} • {currentUser?.mandiriDesaNama}</span>
+          )}
+        </div>
+
+        {statusQueue && (
+          <div className="status-queue-banner">
+            <Timer size={14} />
+            <span>Sedang dalam antrean admin Romantic Room</span>
+          </div>
+        )}
+      </div>
+
+      <main className="grid-container">
+        {loading && data.length === 0 ? (
+          [...Array(6)].map((_, i) => <div key={i} className="skeleton-card" />)
+        ) : (
+          data.map((item) => (
+            <div key={item.id} className="participant-card">
+              <div className="card-image-wrapper">
+                <img
+                  src={item.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.nama)}&background=random`}
+                  alt={item.nama}
+                  className="card-image"
+                />
+                <div className="floating-badge id-badge">#{item.nomorUrut || "-"}</div>
+                <div className={`floating-badge label-badge ${item.panitiaStatus ? "status-panitia" : ""}`}>
+                  {item.panitiaStatus ? "PANITIA" : "PESERTA"}
+                </div>
+              </div>
+
+              <div className="card-content">
+                <h2 className="card-name">{item.nama}</h2>
+                <div className="card-location">
+                  <MapPin size={14} />
+                  <span>{item.mandiriDesaKota || "-"} • {item.mandiriDesaNama || item.desaNama || "-"}</span>
+                </div>
+
+                <div className="card-stats-grid">
+                  <div className="stat-pill">
+                    <Calendar size={14} />
+                    <span>{item.tanggalLahir ? `${new Date().getFullYear() - new Date(item.tanggalLahir).getFullYear()} Tahun` : "-"}</span>
+                  </div>
+                  <div className="stat-pill">
+                    <GraduationCap size={14} />
+                    <span>{item.pendidikan || "-"}</span>
+                  </div>
+                  <div className="stat-pill">
+                    <Heart size={14} />
+                    <span>{item.statusNikah || "Belum Menikah"}</span>
+                  </div>
+                  <div className="stat-pill">
+                    <Briefcase size={14} />
+                    <span>{item.pekerjaan || "Swasta"}</span>
+                  </div>
+                  <div className="stat-pill">
+                    <Globe size={14} />
+                    <span>{item.suku || "-"}</span>
+                  </div>
+                  <div className="stat-pill">
+                    <Instagram size={14} />
+                    {item.instagram ? (
+                      <a
+                        href={`https://instagram.com/${item.instagram.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="card-instagram-link"
+                      >
+                        @{item.instagram.replace('@', '')}
+                      </a>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card-passions-mini">
+                  <div className="pass-pill"><Music size={12} /> <span>Hobi: {item.hobi || "-"}</span></div>
+                  <div className="pass-pill"><Utensils size={12} /> <span>Makan/Minuman: {item.makananMinumanFavorit || "-"}</span></div>
+                </div>
+
+                <div className="card-actions">
+                  <button
+                    className="btn-secondary"
+                    onClick={() => openDetail(item)}
+                  >
+                    Detail Profil
+                  </button>
+                  {item.nomorUrut !== currentUser?.nomorUrut && (
+                    <button
+                      className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
+                      onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && handleConfirmSelection(item.id, item.nama)}
+                      disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id))}
+                    >
+                      {selectedIds.includes(item.id) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
+                      <span>{selectedIds.includes(item.id) ? "Terpilih" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih")}</span>
+                    </button>
+                  )}
+                </div>
+
+                {item.id !== currentUser?.id && (
+                  <div className="commentary-box">
+                    {sentComments.some(sc => sc.penerimaId === item.id) ? (
+                      <div className="comment-sent-indicator">
+                        <MessageSquare size={14} />
+                        <span>Komentar Anda: {sentComments.find(sc => sc.penerimaId === item.id)?.komentar}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="commentary-header">
+                          <div className="anon-toggle">
+                            <input
+                              type="checkbox"
+                              id={`anon-${item.id}`}
+                              checked={komentarAnon}
+                              onChange={(e) => setKomentarAnon(e.target.checked)}
+                              disabled={sentComments.length > 0}
+                            />
+                            <label htmlFor={`anon-${item.id}`}>Anonim</label>
+                          </div>
+                          {!komentarAnon && (
+                            <input
+                              type="text"
+                              className="comment-name-input"
+                              placeholder="Nama Anda..."
+                              value={komentarNama}
+                              onChange={(e) => setKomentarNama(e.target.value)}
+                              disabled={!!currentUser || sentComments.length > 0}
+                            />
+                          )}
+                        </div>
+                        <div className="comment-tags-label">
+                          {sentComments.length > 0 ? "Batas komentar tercapai" : "Berikan Komentar Singkat:"}
+                        </div>
+                        <div className="comment-buttons">
+                          {["Humble", "Baik", "Pendiam", "Penyabar", "Friendly"].map(tag => (
+                            <button
+                              key={tag}
+                              className={`btn-tag ${submittingKomentar === item.id ? "loading" : ""}`}
+                              onClick={() => handleSendKomentar(item.id, item.nama, tag)}
+                              disabled={!!submittingKomentar || sentComments.length > 0}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </main>
+
+      {/* DETAIL MODAL */}
+      {isModalOpen && selectedParticipant && (
+        <div className="modal-overlay" onClick={closeDetail}>
+          <div
+            className={`modal-container gender-${selectedParticipant.jenisKelamin?.toLowerCase()}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <button className="modal-close" onClick={closeDetail}>
+              <X size={20} />
+            </button>
+
+            <div className="modal-layout">
+              {/* LEFT SIDEBAR: PHOTO & ID */}
+              <aside className="modal-sidebar">
+                <div className="modal-photo-wrapper">
+                  {selectedParticipant.foto ? (
+                    <img src={selectedParticipant.foto} alt={selectedParticipant.nama} />
+                  ) : (
+                    <div className="modal-initials-placeholder">{selectedParticipant.nama.charAt(0)}</div>
+                  )}
+                  {/* Photo badges if any */}
+                  <div className="photo-info-badges">
+                    <span className="badge-item">📷 100%</span>
+                    <span className="badge-item">👤</span>
+                  </div>
+                </div>
+
+                <div className="modal-id-card">
+                  <label>NOMOR PESERTA</label>
+                  <div className="id-number">#{selectedParticipant.nomorUrut || selectedParticipant.nomorUnik || "-"}</div>
+                  <div className="id-footer">MANDIRI PARTICIPANT</div>
+                </div>
+              </aside>
+
+              {/* RIGHT CONTENT: INFO SECTIONS */}
+              <div className="modal-content-area">
+                <header className="modal-content-header">
+                  <h2 className="modal-display-name">{selectedParticipant.nama}</h2>
+                  <div className="modal-display-loc">
+                    <MapPin size={14} />
+                    <span>{selectedParticipant.mandiriDesaKota || "-"} • {selectedParticipant.mandiriDesaNama || selectedParticipant.desaNama || "-"}</span>
+                  </div>
+                </header>
+
+                <div className="modal-sections-list">
+                  {/* SECTION 1 */}
+                  <div className="info-section">
+                    <h3 className="section-label">INFORMASI PRIBADI</h3>
+                    <div className="info-grid-2col">
+                      <div className="info-field">
+                        <label>TEMPAT, TGL LAHIR</label>
+                        <p>{selectedParticipant.tempatLahir || "-"}, {selectedParticipant.tanggalLahir || "-"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>UMUR (USIA)</label>
+                        <p>{selectedParticipant.tanggalLahir ? `${new Date().getFullYear() - new Date(selectedParticipant.tanggalLahir).getFullYear()} Tahun` : "-"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>JENIS KELAMIN</label>
+                        <p>{selectedParticipant.jenisKelamin === "L" ? "Laki-Laki" : "Perempuan"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>STATUS PERNIKAHAN</label>
+                        <p>{selectedParticipant.statusNikah || "Belum Menikah"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2 */}
+                  <div className="info-section">
+                    <h3 className="section-label">LATAR BELAKANG</h3>
+                    <div className="info-grid-2col">
+                      <div className="info-field">
+                        <label>PENDIDIKAN TERAKHIR</label>
+                        <p>{selectedParticipant.pendidikan || "-"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>PEKERJAAN / BIDANG</label>
+                        <p>{selectedParticipant.pekerjaan || "-"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>SUKU BANGSA</label>
+                        <p>{selectedParticipant.suku || "-"}</p>
+                      </div>
+                      <div className="info-field">
+                        <label>HOBI & PASSION</label>
+                        <p>{selectedParticipant.hobi || "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 3 */}
+                  <div className="info-section">
+                    <h3 className="section-label">TENTANG SAYA</h3>
+                    <div className="info-grid-1col">
+                      <div className="info-field full">
+                        <label>ALAMAT TINGGAL</label>
+                        <p>{selectedParticipant.alamat || "-"}</p>
+                      </div>
+                      <div className="info-field full">
+                        <label>MAKANAN & MINUMAN FAVORIT</label>
+                        <p>{selectedParticipant.makananMinumanFavorit || "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-cta-area">
+                  {selectedParticipant.nomorUrut !== currentUser?.nomorUrut ? (
+                    <button
+                      className={`btn-action-main ${selectedIds.includes(selectedParticipant.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) ? "disabled" : ""}`}
+                      onClick={() => !selectedIds.includes(selectedParticipant.id) && selectedIds.length < 3 && handleConfirmSelection(selectedParticipant.id, selectedParticipant.nama)}
+                      disabled={selectedIds.includes(selectedParticipant.id) || (selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id))}
+                    >
+                      {selectedIds.includes(selectedParticipant.id) ? <CheckCircle2 size={18} /> : <Heart size={18} />}
+                      <span>{selectedIds.includes(selectedParticipant.id) ? "Terpilih" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini")}</span>
+                    </button>
+                  ) : (
+                    <button className="btn-action-main disabled" disabled>
+                      Ini Adalah Profil Anda
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOX LOVE FLOATING BUTTON */}
+      {boxLoveStatus === "open" && (
+        <button className="box-love-fab" onClick={openBoxLove} title="Box Love">
+          <Heart size={24} fill="white" />
+          <span>Box Love</span>
+        </button>
+      )}
+
+      {/* BOX LOVE POPUP */}
+      {isBoxLoveOpen && (
+        <div className="bl-overlay" onClick={closeBoxLove}>
+          <div className="bl-popup" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="bl-header">
+              <div className="bl-logo">
+                <div className="bl-logo-icon">💝</div>
+                <div>
+                  <h2 className="bl-title">Box Love</h2>
+                  <p className="bl-subtitle">Ingin berkenalan? Masukkan ke Box Love!</p>
+                </div>
+              </div>
+              <button className="bl-close" onClick={closeBoxLove}><X size={20} /></button>
+            </div>
+
+            <div className="bl-notice">
+              <span>🔔 Admin akan menghubungi Anda untuk Romantic Room</span>
+            </div>
+
+            <div className="bl-body">
+              {/* My Info (auto-filled) */}
+              <div className="bl-section">
+                <div className="bl-section-label">
+                  <span>{currentUser?.jenisKelamin === "P" ? "👩" : "👨"}</span>
+                  <span>Peserta {currentUser?.jenisKelamin === "L" ? "Laki-laki" : "Perempuan"}</span>
+                </div>
+                <div className="bl-my-info">
+                  <div className="bl-my-avatar">
+                    {currentUser?.foto ? <img src={currentUser.foto} alt={currentUser.nama} /> : <span>{currentUser?.nama?.charAt(0) || "?"}</span>}
+                  </div>
+                  <div>
+                    <div className="bl-my-name">#{currentUser?.nomorUrut} {currentUser?.nama}</div>
+                    <div className="bl-my-loc">{currentUser?.mandiriDesaKota || "-"}</div>
+                  </div>
+                  <CheckCircle2 size={20} className="bl-check" />
+                </div>
+              </div>
+
+              <div className="bl-heart-divider">💗</div>
+
+              {/* Search opposite gender */}
+              <div className="bl-section">
+                <div className="bl-section-label">
+                  <span>{currentUser?.jenisKelamin === "L" ? "👩" : "👨"}</span>
+                  <span>Peserta {currentUser?.jenisKelamin === "L" ? "Perempuan" : "Laki-laki"}</span>
+                </div>
+                <div className="bl-search-bar">
+                  <input
+                    type="text"
+                    placeholder={`Nomor peserta (${currentUser?.jenisKelamin === "L" ? "200-299" : "1-199"})`}
+                    value={boxLoveSearch}
+                    onChange={e => searchBoxLove(e.target.value)}
+                  />
+                  <Search size={18} className="bl-search-icon" />
+                </div>
+
+                {boxLoveLoading && <div className="bl-loading">Mencari...</div>}
+
+                {boxLoveResults.length > 0 && (
+                  <div className="bl-results">
+                    {boxLoveResults.map(r => (
+                      <div
+                        key={r.id}
+                        className={`bl-result-item ${boxLoveTarget?.id === r.id ? "selected" : ""}`}
+                        onClick={() => setBoxLoveTarget(r)}
+                      >
+                        <div className="bl-result-avatar">
+                          {r.foto ? <img src={r.foto} alt={r.nama} /> : <span>{r.nama?.charAt(0)}</span>}
+                        </div>
+                        <div className="bl-result-info">
+                          <div className="bl-result-name">#{r.nomorUrut} {r.nama}</div>
+                          <div className="bl-result-loc">{r.mandiriDesaKota || "-"} • {r.mandiriDesaNama || "-"}</div>
+                        </div>
+                        {boxLoveTarget?.id === r.id && <CheckCircle2 size={18} className="bl-check" />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {boxLoveSearch.length > 0 && !boxLoveLoading && boxLoveResults.length === 0 && (
+                  <div className="bl-empty">Peserta tidak ditemukan</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bl-footer">
+              <button
+                className="bl-submit-btn"
+                onClick={handleBoxLoveSubmit}
+                disabled={!boxLoveTarget || boxLoveSubmitting}
+              >
+                <Heart size={18} fill="white" />
+                <span>{boxLoveSubmitting ? "Mengirim..." : "Masukkan Box Love 💌"}</span>
+              </button>
+              <p className="bl-footer-note">Setelah dikirim, Admin Romantic Room akan memanggil Anda berdua untuk sesi perkenalan di Romantic Room.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>Sebelumnya</button>
+          <div className="page-numbers">
+            {[...Array(Math.min(5, totalPages))].map((_, i) => (
+              <button
+                key={i}
+                className={page === i + 1 ? "active" : ""}
+                onClick={() => setPage(i + 1)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Berikutnya</button>
+        </div>
+      )}
+
+      <style jsx>{`
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 40px 20px;
+          font-family: 'Inter', sans-serif;
+          color: #334155;
+        }
+
+        /* ✅ Header — semua elemen rata tengah */
+        .page-header {
+          text-align: center;
+          margin-bottom: 40px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+        .badge-top {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #f1f5f9;
+          color: #3b82f6;
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+        }
+        .page-header h1 {
+          font-size: 42px;
+          font-weight: 900;
+          letter-spacing: -1px;
+          margin: 0;
+          color: #1e293b;
+          line-height: 1.1;
+        }
+        .page-header h1 span {
+          color: #3b82f6;
+        }
+        .welcome-msg {
+          color: #64748b;
+          font-size: 16px;
+          margin: 0;
+        }
+
+        /* Toolbar */
+        .toolbar {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: white;
+          padding: 16px;
+          border-radius: 24px;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+          border: 1px solid #f1f5f9;
+          margin-bottom: 24px;
+        }
+        .search-group {
+          display: flex;
+          gap: 12px;
+        }
+        .search-bar {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 12px 20px;
+          border-radius: 16px;
+        }
+        .search-bar input {
+          border: none;
+          background: transparent;
+          outline: none;
+          width: 100%;
+          font-size: 14px;
+          font-weight: 500;
+        }
+        .search-icon { color: #94a3b8; }
+        .btn-advanced {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: white;
+          border: 1px solid #e2e8f0;
+          padding: 0 20px;
+          border-radius: 16px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .btn-advanced:hover { background: #f8fafc; }
+        .filter-controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .toggle-group {
+          display: flex;
+          background: #f1f5f9;
+          padding: 4px;
+          border-radius: 14px;
+        }
+        .toggle-group button {
+          border: none;
+          background: transparent;
+          padding: 8px 18px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #64748b;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .toggle-group button.active {
+          background: #1e293b;
+          color: white;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .select-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        .select-box {
+          appearance: none;
+          background: white;
+          border: 1px solid #e2e8f0;
+          padding: 10px 35px 10px 18px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          outline: none;
+          min-width: 160px;
+          color: #1e293b;
+          transition: 0.2s;
+        }
+        .select-box:hover {
+          border-color: #cbd5e1;
+        }
+        .select-box:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .select-arrow {
+          position: absolute;
+          right: 14px;
+          pointer-events: none;
+          color: #94a3b8;
+        }
+        .status-badge {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 10px 18px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #475569;
+        }
+        .btn-logout {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #fef2f2;
+          color: #ef4444;
+          border: 1px solid #fee2e2;
+          padding: 10px 18px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .btn-logout:hover { background: #fee2e2; }
+
+        /* Selection Banner */
+        .selection-banner {
+          background: #232d3f;
+          padding: 24px 32px;
+          border-radius: 28px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: white;
+          margin-bottom: 32px;
+          box-shadow: 0 15px 30px rgba(35, 45, 63, 0.2);
+        }
+        .banner-left {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+        }
+        .banner-icon {
+          background: rgba(255,255,255,0.1);
+          padding: 14px;
+          border-radius: 18px;
+          color: #60a5fa;
+        }
+        .banner-text {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .banner-label {
+          font-size: 11px;
+          font-weight: 800;
+          color: #94a3b8;
+          letter-spacing: 1.5px;
+        }
+        .banner-value {
+          font-size: 19px;
+          font-weight: 800;
+          color: #ffffff;
+          margin: 0;
+        }
+        .pilihan-pill {
+          background: #3b82f6;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-size: 13px;
+          font-weight: 800;
+          transition: 0.3s;
+        }
+        .pilihan-pill.full {
+          background: #10b981;
+          box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Context Title */
+        .user-title-context {
+          margin-bottom: 32px;
+        }
+        .user-title-context h3 {
+          font-size: 22px;
+          font-weight: 800;
+          margin: 0 0 6px 0;
+          color: #1e293b;
+        }
+        .user-meta {
+          display: flex;
+          justify-content: space-between;
+          color: #64748b;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        /* Grid */
+        .grid-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+          gap: 24px;
+        }
+
+        /* Card */
+        .participant-card {
+          background: white;
+          border-radius: 32px;
+          border: 1px solid #f1f5f9;
+          overflow: hidden;
+          transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+        .participant-card:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+          border-color: #3b82f644;
+        }
+        .card-image-wrapper {
+          height: 380px;
+          position: relative;
+          overflow: hidden;
+        }
+        .card-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: 0.5s;
+        }
+        .participant-card:hover .card-image {
+          transform: scale(1.05);
+        }
+        .floating-badge {
+          position: absolute;
+          padding: 6px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 800;
+          backdrop-filter: blur(8px);
+        }
+        .id-badge {
+          top: 16px;
+          left: 16px;
+          background: #3b82f6;
+          color: white;
+        }
+        .label-badge {
+          bottom: 16px;
+          right: 16px;
+          background: rgba(255,255,255,0.9);
+          color: #334155;
+        }
+        .label-badge.status-panitia {
+          background: #1e293b;
+          color: white;
+        }
+        .card-content {
+          padding: 24px;
+        }
+        .card-name {
+          font-size: 20px;
+          font-weight: 800;
+          color: #1e293b;
+          margin: 0 0 6px 0;
+        }
+        .card-location {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 20px;
+        }
+        .card-stats-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .card-passions-mini {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-bottom: 24px;
+          padding: 12px;
+          background: #f8fafc;
+          border-radius: 12px;
+        }
+        .pass-pill {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #475569;
+        }
+        .pass-pill svg { color: #3b82f6; opacity: 0.8; }
+        .stat-pill {
+          background: #f8fafc;
+          padding: 10px 14px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #475569;
+        }
+        .stat-pill svg { color: #3b82f6; opacity: 0.8; }
+        .card-instagram-link { color: inherit; text-decoration: none; }
+        .card-instagram-link:hover { color: #ec4899; text-decoration: underline; }
+        .card-actions {
+          display: flex;
+          gap: 12px;
+        }
+        .btn-secondary {
+          flex: 1;
+          background: white;
+          border: 1px solid #e2e8f0;
+          color: #334155;
+          padding: 12px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 700;
+          text-align: center;
+          text-decoration: none;
+          transition: 0.2s;
+        }
+        .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-primary {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          padding: 12px;
+          border-radius: 14px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-2px); }
+        .btn-primary.selected { background: #10b981; }
+        .btn-primary.disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border: 1px solid #e2e8f0; }
+        .btn-primary.disabled:hover { transform: none; background: #f1f5f9; }
+
+        /* Pagination */
+        .pagination {
+          margin-top: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 24px;
+        }
+        .pagination button {
+          background: white;
+          border: 1px solid #e2e8f0;
+          padding: 10px 20px;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .page-numbers { display: flex; gap: 8px; }
+        .page-numbers button { width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; }
+        .page-numbers button.active { background: #1e293b; color: white; border-color: #1e293b; }
+
+        /* Skeletons */
+        .skeleton-card {
+          height: 600px;
+          background: #f1f5f9;
+          border-radius: 32px;
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        @media (max-width: 768px) {
+          .toolbar { border-radius: 0; }
+          .grid-container { grid-template-columns: 1fr; }
+          .btn-logout { margin-left: 0; width: 100%; justify-content: center; }
+          .search-group { flex-direction: column; }
+        }
+
+        /* ✅ MODAL STYLES */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.75);
+          backdrop-filter: blur(8px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .modal-container {
+          background: #f8fafc;
+          width: 100%;
+          max-width: 1000px;
+          max-height: 95vh;
+          border-radius: 32px;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 50px 100px -20px rgba(0,0,0,0.25);
+          animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-close {
+          position: absolute;
+          top: 24px;
+          right: 24px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: white;
+          border: 1px solid #e2e8f0;
+          color: #64748b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 100;
+          transition: 0.2s;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .modal-close:hover { background: #f1f5f9; color: #1e293b; transform: scale(1.1); }
+
+        .modal-layout {
+          display: flex;
+          height: 95vh;
+          background: white;
+        }
+
+        /* Sidebar */
+        .modal-sidebar {
+          width: 340px;
+          background: #f8fafc;
+          border-right: 1px solid #e2e8f0;
+          display: flex;
+          flex-direction: column;
+          padding: 32px;
+          overflow-y: auto;
+        }
+
+        .modal-photo-wrapper {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 3/4.5;
+          border-radius: 24px;
+          overflow: hidden;
+          background: white;
+          border: 1px solid #e2e8f0;
+          margin-bottom: 32px;
+        }
+        .modal-photo-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+        .modal-initials-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #94a3b8; font-size: 64px; font-weight: 800; }
+        
+        .photo-info-badges {
+          position: absolute;
+          bottom: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 8px;
+          background: rgba(255,255,255,0.9);
+          backdrop-filter: blur(4px);
+          padding: 6px 14px;
+          border-radius: 100px;
+          border: 1px solid rgba(0,0,0,0.05);
+        }
+        .badge-item { font-size: 10px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 4px; }
+
+        .modal-id-card {
+          text-align: center;
+          padding-top: 10px;
+        }
+        .modal-id-card label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; letter-spacing: 1.5px; margin-bottom: 4px; }
+        .id-number { font-size: 42px; font-weight: 950; color: #3b82f6; margin-bottom: 2px; line-height: 1; }
+        .id-footer { font-size: 11px; font-weight: 900; color: #3b82f6; letter-spacing: 0.5px; }
+
+        /* Content Area */
+        .modal-content-area {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          background: white;
+          overflow-y: auto;
+        }
+
+        .modal-content-header {
+          padding: 40px 48px 24px;
+        }
+        .modal-display-name { font-size: 36px; font-weight: 900; color: #1e293b; margin: 0 0 6px 0; letter-spacing: -0.5px; }
+        .modal-display-loc { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 14px; font-weight: 600; }
+        .modal-display-loc span { opacity: 0.8; }
+
+        .modal-sections-list {
+          flex: 1;
+          padding: 0 48px 40px;
+        }
+
+        .info-section {
+          margin-bottom: 40px;
+          position: relative;
+        }
+        .info-section::before {
+          content: '';
+          display: block;
+          height: 1px;
+          background: #f1f5f9;
+          margin-bottom: 24px;
+        }
+        .section-label { font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 1px; margin-bottom: 24px; }
+
+        .info-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .info-grid-1col { display: grid; grid-template-columns: 1fr; gap: 24px; }
+        
+        .info-field label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; }
+        .info-field p { font-size: 15px; font-weight: 700; color: #334155; margin: 0; }
+        
+
+        .modal-cta-area {
+          padding: 32px 48px;
+          background: #ffffff;
+          border-top: 1px solid #f1f5f9;
+          position: sticky;
+          bottom: 0;
+        }
+
+        .btn-action-main {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          padding: 18px;
+          border-radius: 20px;
+          font-size: 16px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-action-main:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2); }
+        .btn-action-main.selected { background: #10b981; }
+        .btn-action-main.selected:hover { box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); }
+        .btn-action-main.disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(40px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+        @media (max-width: 900px) {
+          .modal-layout { flex-direction: column; overflow-y: auto; height: auto; }
+          .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e2e8f0; height: auto; }
+          .modal-photo-wrapper { max-width: 300px; margin: 0 auto 32px; }
+          .modal-content-area { overflow-y: visible; }
+        }
+
+        @media (max-width: 640px) {
+          .modal-container { max-height: 100vh; border-radius: 0; }
+          .modal-content-header { padding: 32px 24px 16px; }
+          .modal-sections-list { padding: 0 24px 32px; }
+          .modal-cta-area { padding: 24px; }
+          .info-grid-2col { grid-template-columns: 1fr; }
+        }
+
+
+          .status-queue-banner {
+            margin-top: 10px;
+            background: #fff1f2;
+            color: #f43f5e;
+            padding: 8px 16px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1px dashed #fecdd3;
+            animation: pulse-border 2s infinite;
+          }
+          @keyframes pulse-border {
+            0% { border-color: #fecdd3; }
+            50% { border-color: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.1); }
+            100% { border-color: #fecdd3; }
+          }
+
+        /* ================================
+           BOX LOVE STYLES
+           ================================ */
+        .box-love-fab {
+          position: fixed;
+          bottom: 32px;
+          right: 32px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: linear-gradient(135deg, #f472b6, #ec4899, #be185d);
+          color: white;
+          border: none;
+          padding: 14px 22px;
+          border-radius: 50px;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          z-index: 100;
+          box-shadow: 0 8px 24px rgba(236, 72, 153, 0.4);
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          animation: fabPulse 2.5s ease-in-out infinite;
+        }
+        .box-love-fab:hover {
+          transform: translateY(-4px) scale(1.04);
+          box-shadow: 0 16px 32px rgba(236, 72, 153, 0.5);
+        }
+        @keyframes fabPulse {
+          0%, 100% { box-shadow: 0 8px 24px rgba(236, 72, 153, 0.4); }
+          50% { box-shadow: 0 8px 32px rgba(236, 72, 153, 0.7); }
+        }
+
+        /* Overlay */
+        .bl-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.55);
+          backdrop-filter: blur(12px);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: fadeIn 0.2s ease;
+        }
+
+        /* Popup */
+        .bl-popup {
+          background: white;
+          border-radius: 32px;
+          width: 100%;
+          max-width: 480px;
+          max-height: 90vh;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 40px 80px rgba(0,0,0,0.2);
+          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Popup Header */
+        .bl-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 28px 28px 20px;
+        }
+        .bl-logo {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .bl-logo-icon {
+          font-size: 44px;
+          line-height: 1;
+          filter: drop-shadow(0 4px 8px rgba(236, 72, 153, 0.3));
+        }
+        .bl-title {
+          font-size: 26px;
+          font-weight: 900;
+          margin: 0;
+          color: #1e293b;
+          letter-spacing: -0.5px;
+        }
+        .bl-subtitle {
+          font-size: 13px;
+          color: #64748b;
+          margin: 0;
+          font-weight: 500;
+        }
+        .bl-close {
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          background: #f1f5f9;
+          border-radius: 50%;
+          cursor: pointer;
+          color: #64748b;
+          transition: 0.2s;
+          flex-shrink: 0;
+        }
+        .bl-close:hover { background: #e2e8f0; }
+
+        /* Notice */
+        .bl-notice {
+          margin: 0 28px 16px;
+          background: #fff0f6;
+          border: 1px solid #fce7f3;
+          border-radius: 12px;
+          padding: 10px 16px;
+          font-size: 13px;
+          color: #be185d;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        /* Body */
+        .bl-body {
+          padding: 0 28px;
+          flex: 1;
+        }
+
+        /* Section */
+        .bl-section {
+          margin-bottom: 20px;
+        }
+        .bl-section-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 800;
+          color: #475569;
+          margin-bottom: 10px;
+        }
+
+        /* My info card */
+        .bl-my-info {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          background: #f0fdf4;
+          border: 1.5px solid #bbf7d0;
+          border-radius: 16px;
+          padding: 14px 18px;
+          position: relative;
+        }
+        .bl-my-avatar {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          overflow: hidden;
+          background: #e0e7ff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: 900;
+          color: #4f46e5;
+          flex-shrink: 0;
+        }
+        .bl-my-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .bl-my-name {
+          font-size: 15px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .bl-my-loc {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 600;
+          margin-top: 2px;
+        }
+        .bl-check {
+          margin-left: auto;
+          color: #16a34a;
+          flex-shrink: 0;
+        }
+
+        /* Heart divider */
+        .bl-heart-divider {
+          text-align: center;
+          font-size: 24px;
+          margin: 4px 0 16px;
+          animation: heartBeat 1.5s ease-in-out infinite;
+        }
+        @keyframes heartBeat {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+        }
+
+        /* Search bar */
+        .bl-search-bar {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        .bl-search-bar input {
+          width: 100%;
+          border: 2px solid #e2e8f0;
+          background: #f8fafc;
+          padding: 13px 44px 13px 18px;
+          border-radius: 14px;
+          font-size: 14px;
+          font-weight: 600;
+          outline: none;
+          transition: 0.2s;
+          color: #1e293b;
+        }
+        .bl-search-bar input:focus {
+          border-color: #f472b6;
+          background: white;
+          box-shadow: 0 0 0 4px rgba(244, 114, 182, 0.12);
+        }
+        .bl-search-icon {
+          position: absolute;
+          right: 14px;
+          color: #94a3b8;
+          pointer-events: none;
+        }
+
+        /* Results */
+        .bl-results {
+          margin-top: 10px;
+          border: 1.5px solid #fce7f3;
+          border-radius: 16px;
+          overflow: hidden;
+          max-height: 220px;
+          overflow-y: auto;
+        }
+        .bl-result-item {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 12px 16px;
+          cursor: pointer;
+          transition: 0.15s;
+          border-bottom: 1px solid #fff0f6;
+        }
+        .bl-result-item:last-child { border-bottom: none; }
+        .bl-result-item:hover { background: #fff0f6; }
+        .bl-result-item.selected { background: #fdf2f8; }
+        .bl-result-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          overflow: hidden;
+          background: #fce7f3;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          font-weight: 900;
+          color: #be185d;
+          flex-shrink: 0;
+        }
+        .bl-result-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .bl-result-name {
+          font-size: 14px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .bl-result-loc {
+          font-size: 11px;
+          color: #64748b;
+          font-weight: 600;
+          margin-top: 2px;
+        }
+        .bl-loading {
+          text-align: center;
+          padding: 12px;
+          color: #94a3b8;
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .bl-empty {
+          text-align: center;
+          padding: 14px;
+          color: #94a3b8;
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        /* Footer */
+        .bl-footer {
+          padding: 20px 28px 28px;
+        }
+        .bl-submit-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          background: linear-gradient(135deg, #f472b6, #ec4899, #be185d);
+          color: white;
+          border: none;
+          padding: 16px;
+          border-radius: 18px;
+          font-size: 16px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 6px 20px rgba(236, 72, 153, 0.3);
+        }
+        .bl-submit-btn:not(:disabled):hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 28px rgba(236, 72, 153, 0.45);
+        }
+        .bl-submit-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          background: #e2e8f0;
+          color: #94a3b8;
+          box-shadow: none;
+        }
+        .bl-footer-note {
+          text-align: center;
+          font-size: 12px;
+          color: #94a3b8;
+          font-weight: 500;
+          margin: 12px 0 0;
+          line-height: 1.5;
+        }
+
+        @media (max-width: 480px) {
+          .bl-popup { border-radius: 24px 24px 0 0; margin-top: auto; }
+          .bl-overlay { align-items: flex-end; padding: 0; }
+          .box-love-fab { bottom: 20px; right: 20px; }
+        }
+
+        /* ✅ Commentary Box Styles */
+        .commentary-box {
+          margin-top: 20px;
+          padding-top: 16px;
+          border-top: 1px dashed #e2e8f0;
+        }
+        .commentary-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+        .anon-toggle {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #64748b;
+          cursor: pointer;
+        }
+        .anon-toggle input {
+          width: 14px;
+          height: 14px;
+          cursor: pointer;
+        }
+        .comment-name-input {
+          flex: 1;
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          outline: none;
+        }
+        .comment-name-input:focus {
+          border-color: #3b82f6;
+          background: white;
+        }
+        .comment-tags-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 8px;
+        }
+        .comment-buttons {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .btn-tag {
+          background: white;
+          border: 1px solid #e2e8f0;
+          padding: 6px 12px;
+          border-radius: 100px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #475569;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-tag:hover {
+          background: #eff6ff;
+          border-color: #3b82f6;
+          color: #3b82f6;
+          transform: translateY(-1px);
+        }
+        .btn-tag:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+        }
+        .btn-tag.loading {
+          opacity: 0.7;
+          position: relative;
+        }
+        
+        /* Notification Styles */
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          justify-content: center;
+          margin-top: 8px;
+        }
+        .btn-notification {
+          background: white;
+          border: 1px solid #e2e8f0;
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          position: relative;
+          transition: all 0.2s;
+          color: #64748b;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .btn-notification:hover {
+          background: #f8fafc;
+          border-color: #3b82f6;
+          color: #3b82f6;
+          transform: translateY(-2px);
+        }
+        .btn-notification.has-new {
+          border-color: #3b82f6;
+          color: #3b82f6;
+          animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .notification-dot {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 10px;
+          height: 10px;
+          background: #ef4444;
+          border-radius: 50%;
+          border: 2px solid white;
+        }
+
+        /* ✅ Sent Comment Indicators */
+        .comment-sent-indicator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #fef2f2;
+          color: #ef4444;
+          padding: 12px 16px;
+          border-radius: 12px;
+          font-size: 13px;
+          font-weight: 700;
+          border: 1px solid #fee2e2;
+          animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+        .tab-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .tab-title.sent { color: #ef4444; }
+        .tab-title.sent::before {
+          content: '';
+          width: 8px;
+          height: 8px;
+          background: #ef4444;
+          border-radius: 50%;
+        }
+
+        .comment-bubble.sent-red {
+          background: linear-gradient(135deg, #fff5f5, #fffcfc);
+          border-color: #fecdd3;
+          box-shadow: 0 10px 25px rgba(239, 68, 68, 0.05);
+        }
+        .sent-indicator {
+          font-size: 10px;
+          font-weight: 950;
+          color: #ef4444;
+          margin-bottom: 8px;
+          letter-spacing: 0.5px;
+        }
+        .comment-date.red {
+          background: #fef2f2;
+          color: #ef4444;
+        }
+        .spacer-modal {
+          height: 48px;
+          border-bottom: 2px dashed #f1f5f9;
+          margin-bottom: 32px;
+        }
+        .no-comments.mini {
+          padding: 30px;
+          font-size: 13px;
+        }
+
+
+        .comments-modal-box { 
+          background: white;
+          border-radius: 32px;
+          padding: 40px;
+          max-width: 500px; 
+          width: 95%; 
+          max-height: 85vh; 
+          overflow-y: auto; 
+          position: relative; 
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .comments-modal-box .modal-header {
+          text-align: center;
+          margin-bottom: 32px;
+        }
+        .comments-modal-box .icon-badge {
+          width: 64px;
+          height: 64px;
+          background: #eff6ff;
+          color: #3b82f6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 20px;
+          margin: 0 auto 20px;
+          box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+        }
+        .comments-modal-box h2 {
+          font-size: 26px;
+          font-weight: 800;
+          color: #1e293b;
+          margin-bottom: 8px;
+          letter-spacing: -0.025em;
+        }
+        .comments-modal-box p {
+          color: #64748b;
+          font-size: 15px;
+        }
+        .modal-close-btn { 
+          position: absolute; 
+          top: 20px; 
+          right: 20px; 
+          background: none; 
+          border: none; 
+          cursor: pointer; 
+          color: #64748b; 
+          padding: 8px; 
+          border-radius: 50%; 
+          transition: all 0.2s; 
+        }
+        .modal-close-btn:hover { 
+          background: #f1f5f9; 
+          color: #1e293b; 
+        }
+        .comments-list { 
+          display: flex; 
+          flex-direction: column; 
+          gap: 16px; 
+          padding: 10px 0; 
+        }
+        .comment-item { 
+          animation: slideUp 0.3s ease-out; 
+        }
+        @keyframes slideUp { 
+          from { opacity: 0; transform: translateY(10px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+        .comment-bubble { 
+          background: linear-gradient(135deg, #ffffff, #f0f7ff); 
+          padding: 24px; 
+          border-radius: 28px; 
+          border-bottom-left-radius: 4px; 
+          border: 1px solid #e2e8f0; 
+          position: relative; 
+          box-shadow: 0 10px 25px rgba(59, 130, 246, 0.05); 
+          transition: 0.3s;
+        }
+        .comment-bubble:hover {
+          transform: scale(1.02);
+          box-shadow: 0 15px 35px rgba(59, 130, 246, 0.1);
+          border-color: #3b82f6;
+        }
+        .comment-icon {
+          position: absolute;
+          top: -12px;
+          left: 20px;
+          background: white;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+          border: 1px solid #e2e8f0;
+        }
+        .comment-text { 
+          font-size: 22px; 
+          font-weight: 800; 
+          margin-bottom: 20px; 
+          font-style: italic; 
+          line-height: 1.4; 
+          background: linear-gradient(135deg, #1e293b, #3b82f6);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          letter-spacing: -0.01em;
+        }
+        .comment-meta { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          font-size: 13px; 
+          color: #64748b; 
+          font-weight: 700; 
+          border-top: 1px solid #f1f5f9; 
+          padding-top: 16px; 
+        }
+        .author-info {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .author-label {
+          color: #94a3b8;
+          font-weight: 600;
+          text-transform: uppercase;
+          font-size: 10px;
+          letter-spacing: 0.5px;
+        }
+        .comment-author { 
+          color: #1e293b; 
+          font-weight: 800;
+          background: #f1f5f9;
+          padding: 4px 10px;
+          border-radius: 8px;
+        }
+        .comment-date {
+          font-size: 11px;
+          background: #eff6ff;
+          color: #3b82f6;
+          padding: 4px 10px;
+          border-radius: 8px;
+        }
+        .no-comments { 
+          text-align: center; 
+          padding: 80px 20px; 
+          color: #94a3b8; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          background: #f8fafc;
+          border-radius: 32px;
+          border: 2px dashed #e2e8f0;
+        }
+      `}</style>
+
+      {/* COMMENTS MODAL */}
+      {isCommentsModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsCommentsModalOpen(false)}>
+          <div className="modal-box comments-modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="icon-badge">
+                <MessageSquare size={28} className="text-blue-500" />
+              </div>
+              <h2>Pusat Komentar</h2>
+              <p>Kelola komentar masuk dan pantau jejak Anda</p>
+              <button className="modal-close-btn" onClick={() => setIsCommentsModalOpen(false)}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Sent Comments Section (Jejak/Histori) */}
+              <div className="comment-section-tabs">
+                <h3 className="tab-title sent">Jejak Komentar Saya</h3>
+                <div className="comments-list sent">
+                  {sentComments.length > 0 ? (
+                    sentComments.map((c) => (
+                      <div key={c.id} className="comment-item sent">
+                        <div className="comment-bubble sent-red">
+                          <div className="sent-indicator">🚩 JEJAK TERKIRIM</div>
+                          <p className="comment-text">"{c.komentar}"</p>
+                          <div className="comment-meta">
+                            <span className="author-label text-red-500">DIBLOKIR: AKSES BERAKHIR</span>
+                            <span className="comment-date red">{new Date(c.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="no-comments mini">
+                      <p>Anda belum mengirimkan komentar.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="spacer-modal" />
+
+              {/* Received Comments Section */}
+              <div className="comment-section-tabs">
+                <h3 className="tab-title">Komentar Untuk Anda</h3>
+                <div className="comments-list">
+                  {userComments.length > 0 ? (
+                    userComments.map((c) => (
+                      <div key={c.id} className="comment-item">
+                        <div className="comment-bubble">
+                          <div className="comment-icon">
+                            <MessageSquare size={16} fill="#3b82f6" color="#3b82f6" />
+                          </div>
+                          <p className="comment-text">"{c.komentar}"</p>
+                          <div className="comment-meta">
+                            <div className="author-info">
+                              <span className="author-label">Dari:</span>
+                              <span className="comment-author">{c.pengirimNama || "Seseorang"}</span>
+                            </div>
+                            <span className="comment-date">
+                              {new Date(c.createdAt).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="no-comments">
+                      <Heart size={48} style={{ marginBottom: "16px", color: "#e2e8f0" }} />
+                      <p>Belum ada komentar untuk Anda.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
