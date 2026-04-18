@@ -150,6 +150,45 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     e.target.value = ""; // Reset
   };
 
+  const toJpegFile = (source: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(source);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement("canvas");
+        const MAX_DIM = 1200;
+        const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(source); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+          } else {
+            // canvas.toBlob gagal — encode manual via toDataURL
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            const arr = dataUrl.split(",");
+            const bstr = atob(arr[1]);
+            const u8arr = new Uint8Array(bstr.length);
+            for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+            resolve(new File([u8arr], "photo.jpg", { type: "image/jpeg" }));
+          }
+        }, "image/jpeg", 0.85);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(source);
+      };
+
+      img.src = url;
+    });
+  };
+
   const uploadFile = async (file: File) => {
     setUploading(true);
     
@@ -158,52 +197,17 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     setPreview(localUrl);
 
     try {
-      let finalFile: File = file;
+      // Selalu konversi ke JPEG via canvas — mencegah HEIC/HEIF/unknown dikirim ke Cloudinary
+      let finalFile: File;
+      try {
+        finalFile = await toJpegFile(file);
+      } catch {
+        finalFile = file;
+      }
 
-      // Image compression logic (for big files > 1MB)
-      if (file.size > 1024 * 1024) { 
-        try {
-          finalFile = await new Promise<File>((resolve) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            
-            img.onload = () => {
-              URL.revokeObjectURL(url);
-              const canvas = document.createElement("canvas");
-              const MAX_DIM = 1200;
-              const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
-              
-              canvas.width = Math.round(img.width * scale);
-              canvas.height = Math.round(img.height * scale);
-              
-              const ctx = canvas.getContext("2d");
-              if (!ctx) {
-                resolve(file);
-                return;
-              }
-
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              
-              canvas.toBlob((blob) => {
-                if (blob) {
-                  resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" }));
-                } else {
-                  resolve(file);
-                }
-              }, "image/jpeg", 0.85);
-            };
-            
-            img.onerror = () => {
-              URL.revokeObjectURL(url);
-              resolve(file);
-            };
-            
-            img.src = url;
-          });
-        } catch (compressErr) {
-          console.error("Compression component error:", compressErr);
-          finalFile = file;
-        }
+      // Pastikan file yang dikirim selalu bertipe image/jpeg
+      if (finalFile.type !== "image/jpeg") {
+        finalFile = new File([finalFile], "photo.jpg", { type: "image/jpeg" });
       }
 
       const fd = new FormData();
