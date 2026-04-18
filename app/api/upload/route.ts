@@ -54,8 +54,11 @@ export async function POST(request: NextRequest) {
     // Determine resource type based on mime type
     const resourceType = file.type.startsWith("video/") ? "video" : "image";
 
-    // Upload to Cloudinary — pass actual MIME type for correct base64 encoding
-    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, file.type);
+    // Paksa mimeType ke image/jpeg untuk non-video agar Cloudinary tidak menolak format HEIC/unknown
+    const safeMimeType = resourceType === "video" ? file.type : "image/jpeg";
+
+    // Upload to Cloudinary
+    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, safeMimeType);
 
     return NextResponse.json({
       success: true,
