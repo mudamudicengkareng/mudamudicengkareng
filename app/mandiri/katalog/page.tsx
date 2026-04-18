@@ -910,6 +910,9 @@ export default function PublicKatalogPage() {
                   className="card-image"
                 />
                 <div className="floating-badge id-badge">#{item.nomorUrut || "-"}</div>
+                {item.selectedCount >= 5 && (
+                  <div className="floating-badge full-badge">PENUH (5/5)</div>
+                )}
                 <div className={`floating-badge label-badge ${item.panitiaStatus ? "status-panitia" : ""}`}>
                   {item.panitiaStatus ? "PANITIA" : "PESERTA"}
                 </div>
@@ -958,6 +961,10 @@ export default function PublicKatalogPage() {
                       <span>-</span>
                     )}
                   </div>
+                  <div className="stat-pill selection-count">
+                    <UserCheck size={14} />
+                    <span>Dipilih: {item.selectedCount || 0}/5</span>
+                  </div>
                 </div>
 
                 <div className="card-passions-mini">
@@ -974,12 +981,12 @@ export default function PublicKatalogPage() {
                   </button>
                   {item.nomorUrut !== currentUser?.nomorUrut && (
                     <button
-                      className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
-                      onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && handleConfirmSelection(item.id, item.nama)}
-                      disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id))}
+                      className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
+                      onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && item.selectedCount < 5 && handleConfirmSelection(item.id, item.nama)}
+                      disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id))}
                     >
                       {selectedIds.includes(item.id) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
-                      <span>{selectedIds.includes(item.id) ? "Terpilih" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih")}</span>
+                      <span>{selectedIds.includes(item.id) ? "Terpilih" : (item.selectedCount >= 5 ? "Penuh" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih"))}</span>
                     </button>
                   )}
                 </div>
@@ -1105,6 +1112,13 @@ export default function PublicKatalogPage() {
                         <label>STATUS PERNIKAHAN</label>
                         <p>{selectedParticipant.statusNikah || "Belum Menikah"}</p>
                       </div>
+                      <div className="info-field selection-info">
+                        <label>TOTAL DIPILIH (AKTIF)</label>
+                        <p className="selection-value">
+                          <UserCheck size={16} className="inline-icon" />
+                          {selectedParticipant.selectedCount || 0} / 5 Peserta
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1150,12 +1164,12 @@ export default function PublicKatalogPage() {
                 <div className="modal-cta-area">
                   {selectedParticipant.nomorUrut !== currentUser?.nomorUrut ? (
                     <button
-                      className={`btn-action-main ${selectedIds.includes(selectedParticipant.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) ? "disabled" : ""}`}
-                      onClick={() => !selectedIds.includes(selectedParticipant.id) && selectedIds.length < 3 && handleConfirmSelection(selectedParticipant.id, selectedParticipant.nama)}
-                      disabled={selectedIds.includes(selectedParticipant.id) || (selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id))}
+                      className={`btn-action-main ${selectedIds.includes(selectedParticipant.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) || (selectedParticipant.selectedCount >= 5 && !selectedIds.includes(selectedParticipant.id)) ? "disabled" : ""}`}
+                      onClick={() => !selectedIds.includes(selectedParticipant.id) && selectedIds.length < 3 && selectedParticipant.selectedCount < 5 && handleConfirmSelection(selectedParticipant.id, selectedParticipant.nama)}
+                      disabled={selectedIds.includes(selectedParticipant.id) || (selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) || (selectedParticipant.selectedCount >= 5 && !selectedIds.includes(selectedParticipant.id))}
                     >
                       {selectedIds.includes(selectedParticipant.id) ? <CheckCircle2 size={18} /> : <Heart size={18} />}
-                      <span>{selectedIds.includes(selectedParticipant.id) ? "Terpilih" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini")}</span>
+                      <span>{selectedIds.includes(selectedParticipant.id) ? "Terpilih" : (selectedParticipant.selectedCount >= 5 ? "Peserta Sudah Penuh (5/5)" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini"))}</span>
                     </button>
                   ) : (
                     <button className="btn-action-main disabled" disabled>
@@ -1602,6 +1616,19 @@ export default function PublicKatalogPage() {
           background: #3b82f6;
           color: white;
         }
+        .full-badge {
+          top: 16px;
+          right: 16px;
+          background: #ef4444;
+          color: white;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+          animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
         .label-badge {
           bottom: 16px;
           right: 16px;
@@ -1666,6 +1693,14 @@ export default function PublicKatalogPage() {
           color: #475569;
         }
         .stat-pill svg { color: #3b82f6; opacity: 0.8; }
+        .stat-pill.selection-count {
+          background: #eff6ff;
+          color: #1d4ed8;
+          border: 1px solid #dbeafe;
+        }
+        .stat-pill.selection-count svg {
+          color: #2563eb;
+        }
         .card-instagram-link { color: inherit; text-decoration: none; }
         .card-instagram-link:hover { color: #ec4899; text-decoration: underline; }
         .card-actions {
@@ -1795,6 +1830,24 @@ export default function PublicKatalogPage() {
           display: flex;
           height: 95vh;
           background: white;
+        }
+
+        .selection-info {
+          background: #eff6ff;
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #dbeafe;
+        }
+        .selection-value {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 800 !important;
+          color: #1d4ed8 !important;
+          margin-top: 4px;
+        }
+        .inline-icon {
+          color: #2563eb;
         }
 
         /* Sidebar */

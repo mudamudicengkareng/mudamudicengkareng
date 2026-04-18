@@ -49,27 +49,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Improve MIME detection for application/octet-stream or empty types
-    let detectedMime = file.type;
-    if (!detectedMime || detectedMime === "application/octet-stream") {
-      const ext = fileName.split('.').pop();
-      switch (ext) {
-        case "jpg":
-        case "jpeg": detectedMime = "image/jpeg"; break;
-        case "png": detectedMime = "image/png"; break;
-        case "webp": detectedMime = "image/webp"; break;
-        case "heic": detectedMime = "image/heic"; break;
-        case "heif": detectedMime = "image/heif"; break;
-      }
-    }
-
-    console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB, detected type: ${detectedMime}`);
+    console.log(`DEBUG: Target upload file size: ${(buffer.length / 1024).toFixed(2)} KB, type: ${file.type}`);
 
     // Determine resource type based on mime type
-    const resourceType = detectedMime.startsWith("video/") ? "video" : "image";
+    const resourceType = file.type.startsWith("video/") ? "video" : "image";
 
-    // Upload to Cloudinary — pass actual/detected MIME type for correct base64 encoding
-    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, detectedMime);
+    // Upload to Cloudinary — pass actual MIME type for correct base64 encoding
+    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, file.type);
 
     return NextResponse.json({
       success: true,

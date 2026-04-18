@@ -8,10 +8,11 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode
+  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { utils, writeFile } from "xlsx";
 
 export default function AdminKatalogPage() {
   const [data, setData] = useState<GenerusItem[]>([]);
@@ -329,6 +330,71 @@ export default function AdminKatalogPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    Swal.fire({
+      title: "Menyiapkan Excel...",
+      text: "Sedang mengambil data. Harap tunggu sebentar.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const params = new URLSearchParams({
+        search,
+        all: "true",
+        mandiriOnly: "true",
+        jenisKelamin: gender,
+        status: status,
+        pendidikan: pendidikan,
+        mandiriDesaId: selectedRegion,
+        desaId: selectedDesa
+      });
+      const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      const allParticipants: GenerusItem[] = json.data || [];
+
+      if (allParticipants.length === 0) {
+        Swal.fire("Info", "Tidak ada data untuk diekspor", "info");
+        return;
+      }
+
+      const excelData = allParticipants.map((item, index) => ({
+        "No": index + 1,
+        "Nama Lengkap": item.nama,
+        "Nomor Peserta": item.nomorUrut || "-",
+        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta",
+        "Gender": item.jenisKelamin,
+        "Wilayah": item.mandiriDesaKota || "-",
+        "Desa": item.mandiriDesaNama || item.desaNama || "-"
+      }));
+
+      const wb = utils.book_new();
+      const ws = utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const wscols = [
+        { wch: 5 },  // No
+        { wch: 30 }, // Nama Lengkap
+        { wch: 15 }, // Nomor Peserta
+        { wch: 15 }, // Status
+        { wch: 10 }, // Gender
+        { wch: 20 }, // Wilayah
+        { wch: 20 }, // Desa
+      ];
+      ws['!cols'] = wscols;
+
+      utils.book_append_sheet(wb, ws, "Daftar Katalog");
+      writeFile(wb, `KATALOG_PESERTA_${new Date().getTime()}.xlsx`);
+      
+      Swal.fire("Berhasil", "Data telah diekspor ke Excel", "success");
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Gagal", "Gagal mengekspor Excel", "error");
+    }
+  };
+
   const copyPublicLink = () => {
     const url = `${window.location.origin}/mandiri/katalog`;
     navigator.clipboard.writeText(url);
@@ -352,17 +418,17 @@ export default function AdminKatalogPage() {
 
       </header>
       <div className="toolbar-section">
+        <div className="search-box" style={{ marginBottom: '20px' }}>
+          <Search size={18} className="icon-muted" />
+          <input
+            type="text"
+            placeholder="Cari nama, nomor, desa, atau alamat..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
+        </div>
         <div className="toolbar-top">
-          <div className="search-box">
-            <Search size={18} className="icon-muted" />
-            <input
-              type="text"
-              placeholder="Cari nama, nomor, desa, atau alamat..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-          </div>
-          <div className="action-buttons">
+          <div className="action-buttons" style={{ flexWrap: 'wrap' }}>
             <button className={`btn-toggle-public ${publicStatus === "open" ? "active" : ""}`} onClick={handleTogglePublic}>
               {publicStatus === "open" ? <Eye size={16} /> : <EyeOff size={16} />}
               <span>Public View</span>
@@ -379,6 +445,10 @@ export default function AdminKatalogPage() {
             <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }} onClick={() => setShowAccessQR(true)}>
               <QrCode size={16} />
               <span>QR Akses</span>
+            </button>
+            <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }} onClick={handleExportExcel}>
+              <FileSpreadsheet size={16} />
+              <span>Export Excel</span>
             </button>
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />

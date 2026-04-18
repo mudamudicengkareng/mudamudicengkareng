@@ -133,6 +133,12 @@ export async function GET(request: NextRequest) {
         role: usersOld.role,
         nomorUrut: mandiri.nomorUrut,
         panitiaStatus: formPanitiaDanPengurus.dapukan,
+        selectedCount: sql<number>`(
+          SELECT count(*) 
+          FROM mandiri_pemilihan 
+          WHERE mandiri_pemilihan.penerima_id = ${generus.id} 
+          AND (mandiri_pemilihan.status = 'Menunggu' OR mandiri_pemilihan.status = 'Diterima')
+        )`.mapWith(Number)
       })
       .from(generus)
       .innerJoin(mandiri, eq(generus.id, mandiri.generusId))

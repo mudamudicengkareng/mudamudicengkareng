@@ -339,6 +339,9 @@ export default function RomanticRoomPage() {
                             <input type="radio" id="p_lanjut" name="hasil_p" value="Lanjut" checked style="display:none">
                             <label for="p_lanjut" class="swal-custom-radio">Lanjut</label>
                             
+                            <input type="radio" id="p_ragu" name="hasil_p" value="Ragu-ragu" style="display:none">
+                            <label for="p_ragu" class="swal-custom-radio">Ragu-ragu</label>
+
                             <input type="radio" id="p_tidak" name="hasil_p" value="Tidak Lanjut" style="display:none">
                             <label for="p_tidak" class="swal-custom-radio">Tidak Lanjut</label>
                         </div>
@@ -352,6 +355,9 @@ export default function RomanticRoomPage() {
                             <input type="radio" id="t_lanjut" name="hasil_t" value="Lanjut" checked style="display:none">
                             <label for="t_lanjut" class="swal-custom-radio">Lanjut</label>
                             
+                            <input type="radio" id="t_ragu" name="hasil_t" value="Ragu-ragu" style="display:none">
+                            <label for="t_ragu" class="swal-custom-radio">Ragu-ragu</label>
+
                             <input type="radio" id="t_tidak" name="hasil_t" value="Tidak Lanjut" style="display:none">
                             <label for="t_tidak" class="swal-custom-radio">Tidak Lanjut</label>
                         </div>
@@ -378,6 +384,11 @@ export default function RomanticRoomPage() {
                             background: #f0fdf4; 
                             color: #16a34a; 
                             border-color: #16a34a; 
+                        }
+                        input[id$="_ragu"]:checked + .swal-custom-radio { 
+                            background: #fffbeb; 
+                            color: #d97706; 
+                            border-color: #d97706; 
                         }
                         input[id$="_tidak"]:checked + .swal-custom-radio { 
                             background: #fef2f2; 
@@ -506,6 +517,15 @@ export default function RomanticRoomPage() {
         if (resultFilter === "Tidak Lanjut - Tidak Lanjut") {
             return res1 === "Tidak Lanjut" && res2 === "Tidak Lanjut";
         }
+        if (resultFilter === "Ragu-ragu - Ragu-ragu") {
+            return res1 === "Ragu-ragu" && res2 === "Ragu-ragu";
+        }
+        if (resultFilter === "Lanjut - Ragu-ragu") {
+            return (res1 === "Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Lanjut");
+        }
+        if (resultFilter === "Tidak Lanjut - Ragu-ragu") {
+            return (res1 === "Tidak Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Tidak Lanjut");
+        }
         return true;
     });
 
@@ -628,6 +648,9 @@ export default function RomanticRoomPage() {
                                     <option value="Lanjut - Lanjut">Lanjut - Lanjut</option>
                                     <option value="Lanjut - Tidak Lanjut">Lanjut - Tidak Lanjut</option>
                                     <option value="Tidak Lanjut - Tidak Lanjut">Tidak Lanjut - Tidak Lanjut</option>
+                                    <option value="Ragu-ragu - Ragu-ragu">Ragu-ragu - Ragu-ragu</option>
+                                    <option value="Lanjut - Ragu-ragu">Lanjut - Ragu-ragu</option>
+                                    <option value="Tidak Lanjut - Ragu-ragu">Tidak Lanjut - Ragu-ragu</option>
                                 </select>
                                 <span className="count-badge">{filteredHistory.length} Record</span>
                             </div>
@@ -658,7 +681,11 @@ export default function RomanticRoomPage() {
                                                 <td>{item.pemilihStatus}</td>
                                                 <td>
                                                     {item.pemilihHasil && (
-                                                        <span className={`result-badge ${item.pemilihHasil === 'Lanjut' ? 'badge-success' : 'badge-danger'}`}>
+                                                        <span className={`result-badge ${
+                                                            item.pemilihHasil === 'Lanjut' ? 'badge-success' : 
+                                                            item.pemilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
+                                                            'badge-danger'
+                                                        }`}>
                                                             {item.pemilihHasil}
                                                         </span>
                                                     )}
@@ -668,7 +695,11 @@ export default function RomanticRoomPage() {
                                                 <td>{item.terpilihStatus}</td>
                                                 <td>
                                                     {item.terpilihHasil && (
-                                                        <span className={`result-badge ${item.terpilihHasil === 'Lanjut' ? 'badge-success' : 'badge-danger'}`}>
+                                                        <span className={`result-badge ${
+                                                            item.terpilihHasil === 'Lanjut' ? 'badge-success' : 
+                                                            item.terpilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
+                                                            'badge-danger'
+                                                        }`}>
                                                             {item.terpilihHasil}
                                                         </span>
                                                     )}
@@ -780,6 +811,7 @@ export default function RomanticRoomPage() {
                         color: white !important;
                     }
                     .result-badge.badge-success { background: #16a34a; }
+                    .result-badge.badge-warning { background: #d97706; }
                     .result-badge.badge-danger { background: #dc2626; }
 
                     .room-timer-badge {
@@ -907,7 +939,7 @@ export default function RomanticRoomPage() {
                                     <div className="form-group span-2">
                                         <label>Hasil Pertemuan</label>
                                         <div className="radio-group-pdkt">
-                                            {["Lanjut", "Ragu-Ragu", "Tidak Lanjut"].map(opt => (
+                                            {["Lanjut", "Ragu-ragu", "Tidak Lanjut"].map(opt => (
                                                 <button key={opt} type="button" className={form.rekomendasi === opt ? "active" : ""} onClick={() => setForm({...form, rekomendasi: opt})}>{opt}</button>
                                             ))}
                                         </div>

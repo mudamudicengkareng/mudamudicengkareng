@@ -114,13 +114,22 @@ export async function POST(request: NextRequest) {
         });
         if (existing) return NextResponse.json({ error: "Anda sudah memilih peserta ini" }, { status: 400 });
 
-        // Count active selections (max 3)
+        // Count active selections from this sender (max 3)
         const activeCount = await db.select({ value: count() }).from(mandiriPemilihan)
             .where(and(eq(mandiriPemilihan.pengirimId, pengirimId), or(eq(mandiriPemilihan.status, "Menunggu"), eq(mandiriPemilihan.status, "Diterima"))));
         
         const countVal = Number(activeCount[0]?.value || 0);
         if (countVal >= 3) {
              return NextResponse.json({ error: "Anda telah mencapai batas maksimum 3 pemilihan" }, { status: 403 });
+        }
+
+        // Count how many times the target has been selected by others (max 5)
+        const targetActiveCount = await db.select({ value: count() }).from(mandiriPemilihan)
+            .where(and(eq(mandiriPemilihan.penerimaId, targetId), or(eq(mandiriPemilihan.status, "Menunggu"), eq(mandiriPemilihan.status, "Diterima"))));
+        
+        const targetCountVal = Number(targetActiveCount[0]?.value || 0);
+        if (targetCountVal >= 5) {
+             return NextResponse.json({ error: "Peserta ini sudah mencapai batas maksimum terpilih (5 kali)" }, { status: 403 });
         }
 
         const id = uuidv4();
