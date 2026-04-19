@@ -63,54 +63,31 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     setIsCameraOpen(false);
   };
 
-  const capturePhoto = async () => {
+  const capturePhoto = () => {
     if (!videoRef.current) return;
-
     const video = videoRef.current;
-
-    // Tunggu video benar-benar siap
     if (video.readyState < 2) {
       Swal.fire({ icon: "warning", title: "Kamera Belum Siap", text: "Tunggu sebentar lalu coba lagi.", confirmButtonColor: "#3b82f6" });
       return;
     }
-
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
-
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     ctx.translate(width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, width, height);
-
     stopCamera();
-
-    // Gunakan toBlob sebagai metode utama — lebih reliable dari toDataURL di mobile
     canvas.toBlob((blob) => {
       if (blob && blob.size > 100) {
         uploadFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-        return;
+      } else {
+        Swal.fire({ icon: "error", title: "Gagal Ambil Foto", text: "Tidak dapat memproses gambar dari kamera. Coba gunakan Galeri Perangkat.", confirmButtonColor: "#3b82f6" });
       }
-
-      // Fallback: toDataURL
-      try {
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        const parts = dataUrl.split(",");
-        if (parts.length < 2 || parts[1].length < 10) {
-          throw new Error("Canvas kosong");
-        }
-        const bstr = atob(parts[1]);
-        const u8arr = new Uint8Array(bstr.length);
-        for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-        uploadFile(new File([u8arr], "capture.jpg", { type: "image/jpeg" }));
-      } catch {
-        Swal.fire({ icon: "error", title: "Gagal Ambil Foto", text: "Tidak dapat memproses gambar. Coba lagi.", confirmButtonColor: "#3b82f6" });
-      }
-    }, "image/jpeg", 0.9);
+    }, "image/jpeg", 0.85);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,69 +159,36 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
     return new Promise((resolve) => {
       const img = new Image();
       const url = URL.createObjectURL(source);
-
       img.onload = () => {
         URL.revokeObjectURL(url);
         const canvas = document.createElement("canvas");
-        const MAX_DIM = 1200;
-        const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { resolve(source); return; }
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const MAX_DIM = 800;
+        let { width, height } = img;
+        if (width > MAX_DIM) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob((blob) => {
           if (blob) {
             resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
           } else {
-            // canvas.toBlob gagal — encode manual via toDataURL
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-            const arr = dataUrl.split(",");
-            const bstr = atob(arr[1]);
-            const u8arr = new Uint8Array(bstr.length);
-            for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-            resolve(new File([u8arr], "photo.jpg", { type: "image/jpeg" }));
+            resolve(source);
           }
-        }, "image/jpeg", 0.85);
+        }, "image/jpeg", 0.75);
       };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve(source);
-      };
-
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(source); };
       img.src = url;
     });
   };
 
   const uploadFile = async (file: File) => {
     setUploading(true);
-    
-    const localUrl = URL.createObjectURL(file);
-    setPreview(localUrl);
-
+    setPreview(URL.createObjectURL(file));
     try {
-      if (file.size < 100) {
-        throw new Error(`[DEBUG] File terlalu kecil: ${file.size} bytes, type: ${file.type}`);
-      }
-
-      let finalFile: File;
-      try {
-        finalFile = await toJpegFile(file);
-      } catch (e: any) {
-        throw new Error(`[DEBUG] toJpegFile gagal: ${e.message}`);
-      }
-
-      if (finalFile.size < 100) {
-        throw new Error(`[DEBUG] finalFile terlalu kecil: ${finalFile.size} bytes`);
-      }
-
-      if (finalFile.type !== "image/jpeg") {
-        finalFile = new File([finalFile], "photo.jpg", { type: "image/jpeg" });
-      }
-
+      const compressed = await toJpegFile(file);
       const fd = new FormData();
-      fd.append("file", finalFile);
+      fd.append("file", compressed);
 
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const json = await res.json();
@@ -262,7 +206,7 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
           timerProgressBar: true,
         });
       } else {
-        throw new Error(`[SERVER] ${json.error || "Gagal mengunggah foto"} | details: ${json.details || "-"}`);
+        throw new Error(json.error || "Gagal mengunggah foto");
       }
     } catch (err: any) {
       console.error("Upload error:", err);
