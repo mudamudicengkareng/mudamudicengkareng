@@ -191,7 +191,15 @@ export default function PhotoUpload({ value, onChange, label, helperText }: Phot
       fd.append("file", compressed);
 
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const json = await res.json();
+      
+      let json: any;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        json = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server error (${res.status}): ${text.substring(0, 200)}`);
+      }
       
       if (json.url) {
         setPreview(json.url);
