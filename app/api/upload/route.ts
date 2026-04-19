@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import cloudinary from "@/lib/cloudinary";
 
 // Max file size: 8 MB (in bytes)
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Validate file size
     if (buffer.length > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: `Ukuran file terlalu besar (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Maksimal 8 MB.` },
@@ -49,29 +48,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validasi buffer tidak kosong
-    if (buffer.length < 100) {
-      return NextResponse.json(
-        { error: `File terlalu kecil atau corrupt (${buffer.length} bytes). Coba ambil foto ulang.` },
-        { status: 400 }
-      );
-    }
-
-    console.log(`DEBUG: Received file — name: ${file.name}, type: ${file.type}, size: ${(buffer.length / 1024).toFixed(2)} KB`);
-
-    // Cek magic bytes untuk memastikan ini benar-benar JPEG
-    const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8;
-    const isPng  = buffer[0] === 0x89 && buffer[1] === 0x50;
-    const isWebp = buffer.slice(8, 12).toString() === "WEBP";
-    console.log(`DEBUG: Magic bytes check — JPEG: ${isJpeg}, PNG: ${isPng}, WEBP: ${isWebp}`);
-
-    const resourceType = file.type.startsWith("video/") ? "video" : "image";
-    const result: any = await uploadToCloudinary(buffer, "uploads", resourceType, "image/jpeg");
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          folder: "uploads",
+          resource_type: "image",
+          transformation: [
+            { width: 800, height: 800, crop: "limit" },
+            { quality: "auto:good" },
+          ],
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(buffer);
+    });
 
     return NextResponse.json({
       success: true,
-      url: result.secure_url,
-      public_id: result.public_id,
+      url: (result as any).secure_url,
+      public_id: (result as any).public_id,
     });
   } catch (error: any) {
     console.error("Cloudinary upload error details:", error);
