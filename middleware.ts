@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/desa", "/api/auth/kelompok", "/api/auth/reset-password", "/api/settings", "/api/public", "/mandiri/katalog", "/mandiri/daftar"];
+const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/desa", "/api/auth/kelompok", "/api/auth/reset-password", "/api/settings", "/api/public", "/api/upload", "/mandiri/katalog", "/mandiri/daftar"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
