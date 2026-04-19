@@ -115,7 +115,10 @@ export default function RomanticRoomPage() {
             // Fetch Rooms
             const roomsRes = await fetch("/api/mandiri/rooms", { headers: h });
             const roomsJson = await roomsRes.json();
-            setAllRooms(Array.isArray(roomsJson) ? roomsJson : []);
+            const sortedRooms = Array.isArray(roomsJson) 
+                ? [...roomsJson].sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' }))
+                : [];
+            setAllRooms(sortedRooms);
 
             if (isUserAdmin) {
                 // Fetch All Selections for Queue
@@ -593,7 +596,7 @@ export default function RomanticRoomPage() {
                             </div>
                         </div>
                         <div className="card-body grid-rooms">
-                            {[...allRooms].sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })).map((room) => (
+                            {allRooms.map((room) => (
                                 <div key={room.id} className={`room-tile ${room.status?.toLowerCase()}`}>
                                     <div className="room-top">
                                         <span className="room-name">{room.nama}</span>
