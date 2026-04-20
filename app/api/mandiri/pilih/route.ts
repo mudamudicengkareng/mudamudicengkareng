@@ -24,12 +24,14 @@ export async function GET(request: NextRequest) {
 
         // If not logged in but has token, verify token
         if (!currentGenerusId && nomorUnikReq && tokenReq) {
-            const m = await db.select({ generusId: mandiri.generusId })
+            const m = await db.select({ generusId: mandiri.generusId, lastSessionToken: mandiri.lastSessionToken })
                 .from(mandiri)
                 .innerJoin(generus, eq(mandiri.generusId, generus.id))
-                .where(and(eq(generus.nomorUnik, nomorUnikReq), eq(mandiri.lastSessionToken, tokenReq)))
+                .where(eq(generus.nomorUnik, nomorUnikReq))
                 .limit(1);
-            if (m.length > 0) currentGenerusId = m[0].generusId;
+            if (m.length > 0 && (m[0].lastSessionToken === tokenReq || m[0].lastSessionToken === null)) {
+                currentGenerusId = m[0].generusId;
+            }
         }
 
         if (!currentGenerusId && !isAdmin) {
