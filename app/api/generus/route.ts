@@ -161,16 +161,23 @@ export async function GET(request: NextRequest) {
     const canSeePrivateData = ["admin", "kmm_daerah", "admin_romantic_room", "pengurus_daerah", "tim_pnkb"].includes(session.role);
 
     // Common Select - Pastikan nama field sesuai
+    // Common Select - Pastikan semua field yang dibutuhkan frontend ada di sini
     const commonSelect = {
       id: generus.id,
+      nomorUnik: generus.nomorUnik,
       nama: generus.nama,
+      foto: generus.foto, // <--- TAMBAHKAN INI LAGI
       jenisKelamin: generus.jenisKelamin,
       nomorUrut: mandiri.nomorUrut,
       desaNama: desa.nama,
       mandiriDesaNama: mandiriDesa.nama,
+      mandiriDesaKota: mandiriDesa.kota, // Tambahkan ini juga jika dibutuhkan
       pendidikan: generus.pendidikan,
+      pekerjaan: generus.pekerjaan, // Tambahkan ini juga
       statusNikah: generus.statusNikah,
+      instagram: generus.instagram, // Tambahkan ini agar link IG tidak hilang
       noTelp: canSeePrivateData ? generus.noTelp : sql<string | null>`NULL`,
+      panitiaStatus: formPanitiaDanPengurus.dapukan, // Tambahkan ini agar badge Panitia muncul
     };
 
     let dataQuery = db
@@ -192,7 +199,7 @@ export async function GET(request: NextRequest) {
       const rawData = await dataQuery.where(finalWhere).orderBy(generus.nama);
 
       // 1. Definisikan Header (Tanpa Daerah)
-      const header = ["NO", "NO. URUT", "NAMA LENGKAP", "L/P", "DESA/CABANG", "PENDIDIKAN", "STATUS"];
+      const header = ["NO", "NO. URUT", "NAMA LENGKAP", "L/P", "DESA", "DAERAH", "PENDIDIKAN", "STATUS"];
 
       // 2. Map Data (Pastikan menggunakan properti dari commonSelect)
       const rows = rawData.map((item, index) => [
@@ -201,6 +208,7 @@ export async function GET(request: NextRequest) {
         item.nama?.toUpperCase(),
         item.jenisKelamin || "-",
         item.mandiriDesaNama || item.desaNama || "-",
+        item.mandiriDesaKota || "-",
         item.pendidikan || "-",
         item.statusNikah || "-"
       ]);

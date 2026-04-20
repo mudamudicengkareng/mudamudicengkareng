@@ -146,12 +146,13 @@ export default function AdminKatalogPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    if (selectedParticipant && cardCanvasRef.current) {
+    // Pastikan selectedParticipant ADA dan nomorUnik TIDAK KOSONG
+    if (selectedParticipant && selectedParticipant.nomorUnik && cardCanvasRef.current) {
       QRCode.toCanvas(cardCanvasRef.current, selectedParticipant.nomorUnik, {
         width: 120,
         margin: 1,
         color: { dark: "#000000", light: "#ffffff" },
-      });
+      }).catch(err => console.error("QR Error:", err)); // Tambahkan catch agar tidak crash
     }
   }, [selectedParticipant]);
 
