@@ -227,11 +227,18 @@ export default function PublicKatalogPage() {
             // FIX: Encode pilih params too
             const selQs = buildQuery({ nomorUnik: storedUnik, token: storedToken || "" });
             const selRes = await fetch(`/api/mandiri/pilih?${selQs}`);
-            const selJson = await selRes.json();
-            if (Array.isArray(selJson)) {
-              setSelections(selJson);
-              setSelectedIds(selJson.map((s: any) => String(s.penerimaId)));
-              setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
+            if (selRes.ok) {
+              const selText = await selRes.text();
+              if (selText) {
+                try {
+                  const selJson = JSON.parse(selText);
+                  if (Array.isArray(selJson)) {
+                    setSelections(selJson);
+                    setSelectedIds(selJson.map((s: any) => String(s.penerimaId)));
+                    setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
+                  }
+                } catch (e) { console.error("selJson parse error:", e); }
+              }
             }
           } else if (data.status === "multi_login") {
             handleLogout();
