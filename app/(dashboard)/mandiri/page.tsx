@@ -61,7 +61,7 @@ export default function MandiriPage() {
    const handleSettings = async () => {
       const { value: formValues } = await Swal.fire({
          title: "Pengaturan Pendaftaran",
-          html: `
+         html: `
         <div style="text-align: left">
           <label class="form-label">Nama Kegiatan / Judul Form</label>
           <input id="swal-title" class="form-control" value="${regTitle}" placeholder="Contoh: Pra-Nikah Daerah 2024" style="margin-bottom: 12px">
@@ -109,7 +109,7 @@ export default function MandiriPage() {
             setRegTitle(formValues.title);
             setRegDesc(formValues.desc);
             setRegStatus(formValues.status);
-            setIsClosed(formValues.status === "0");
+            setIsClosed(formValues.status === "Waktu Habis");
             Swal.fire({ icon: "success", title: "Berhasil disimpan", timer: 1000, showConfirmButton: false });
          } catch (e: any) {
             Swal.fire({ icon: "error", title: "Error", text: e.message });

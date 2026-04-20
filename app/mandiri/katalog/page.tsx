@@ -18,8 +18,9 @@ export default function PublicKatalogPage() {
   const [gender, setGender] = useState("all");
   const [category, setCategory] = useState("all");
   const [pendidikan, setPendidikan] = useState("all");
-  const [wilayah, setWilayah] = useState("all");
   const [desaFilter, setDesaFilter] = useState("all");
+  const [kotaList, setKotaList] = useState<string[]>([]);
+  const [selectedKota, setSelectedKota] = useState("all");
   const [page, setPage] = useState(1);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [latestActivity, setLatestActivity] = useState<any>(null);
@@ -32,7 +33,6 @@ export default function PublicKatalogPage() {
   const [statusQueue, setStatusQueue] = useState<any>(null);
   const [pendidikanList, setPendidikanList] = useState<string[]>([]);
   const [wilayahList, setWilayahList] = useState<any[]>([]);
-  const [desaList, setDesaList] = useState<any[]>([]);
   const [selections, setSelections] = useState<any[]>([]);
 
   // Box Love state
@@ -59,10 +59,14 @@ export default function PublicKatalogPage() {
       const resRec = await fetch(`/api/mandiri/komentar?penerimaId=${userId}`);
       if (resRec.ok) {
         const data = await resRec.json();
-        setUserComments(data);
-        if (data.length > 0) {
-          localStorage.setItem(`last_seen_comment_${userId}`, data[0].id);
+
+        // Check for new comments to trigger notification dot
+        const lastSeen = localStorage.getItem(`last_seen_comment_${userId}`);
+        if (data.length > 0 && data[0].id !== lastSeen && !isCommentsModalOpen) {
+          setHasNewComments(true);
         }
+
+        setUserComments(data);
       }
 
       // Fetch sent comments (jejak/histori)
@@ -74,7 +78,25 @@ export default function PublicKatalogPage() {
     } catch (e) {
       console.error("Error fetching comments:", e);
     }
-  }, []);
+  }, [isCommentsModalOpen]);
+
+  // Periodic polling for comments
+  useEffect(() => {
+    if (currentUser?.id) {
+      const interval = setInterval(() => {
+        fetchUserComments(currentUser.id);
+      }, 30000); // Poll every 30s
+      return () => clearInterval(interval);
+    }
+  }, [currentUser?.id, fetchUserComments]);
+
+  // Update last seen when modal is open
+  useEffect(() => {
+    if (isCommentsModalOpen && currentUser?.id && userComments.length > 0) {
+      localStorage.setItem(`last_seen_comment_${currentUser.id}`, userComments[0].id);
+      setHasNewComments(false);
+    }
+  }, [isCommentsModalOpen, currentUser?.id, userComments]);
 
   const limit = 20;
 
@@ -101,8 +123,8 @@ export default function PublicKatalogPage() {
         jenisKelamin: gender,
         status: category,
         pendidikan: pendidikan,
-        mandiriDesaId: wilayah,
-        desaId: desaFilter,
+        mandiriDesaId: desaFilter,
+        kota: selectedKota,
         nomorUnik: storedUnik || "",
         sessionToken: storedToken || ""
       });
@@ -124,7 +146,7 @@ export default function PublicKatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page, gender, category, pendidikan, wilayah, desaFilter]);
+  }, [search, page, gender, category, pendidikan, selectedKota, desaFilter]);
 
   useEffect(() => {
     async function init() {
@@ -151,8 +173,8 @@ export default function PublicKatalogPage() {
         if (filterRes.ok) {
           const filterJson = await filterRes.json();
           setPendidikanList(filterJson.pendidikan || []);
+          setKotaList(filterJson.kota || []);
           setWilayahList(filterJson.wilayah || []);
-          setDesaList(filterJson.desa || []);
         }
 
         // Fetch Box Love status
@@ -187,6 +209,9 @@ export default function PublicKatalogPage() {
               jenisKelamin: data.jenisKelamin,
               role: userRole
             });
+            if (data.jenisKelamin) {
+              setGender(data.jenisKelamin === "L" ? "P" : "L");
+            }
             setKomentarNama(data.nama);
             localStorage.setItem("attended_role", userRole);
 
@@ -198,7 +223,7 @@ export default function PublicKatalogPage() {
             const selJson = await selRes.json();
             if (Array.isArray(selJson)) {
               setSelections(selJson);
-              setSelectedIds(selJson.map((s: any) => s.penerimaId));
+              setSelectedIds(selJson.map((s: any) => String(s.penerimaId)));
               setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
             }
           } else if (data.status === "multi_login") {
@@ -222,15 +247,15 @@ export default function PublicKatalogPage() {
   const handleSendKomentar = async (penerimaId: string, itemNama: string, komentar: string) => {
     if (submittingKomentar) return;
 
-    if (sentComments.length > 0) {
-      Swal.fire("Akses Diblokir", "Anda hanya diperbolehkan mengirimkan satu komentar di katalog.", "warning");
+    if (sentComments.some(sc => sc.penerimaId === penerimaId)) {
+      Swal.fire("Akses Diblokir", "Anda sudah mengirimkan komentar kepada peserta ini.", "warning");
       return;
     }
 
     // Confirmation
     const { isConfirmed } = await Swal.fire({
       title: `Berikan komentar ${komentar}?`,
-      text: `Anda akan memberikan komentar "${komentar}" untuk ${itemNama}. Setelah dikirim, Anda tidak dapat memberikan komentar lagi ke peserta lain.`,
+      text: `Anda akan memberikan komentar "${komentar}" untuk ${itemNama}. Setelah dikirim, Anda tidak dapat mengubah komentar ini.`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Ya, Kirim',
@@ -332,7 +357,21 @@ export default function PublicKatalogPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal mengirim");
 
-      await Swal.fire({
+      if (json.selections) {
+        setSelections(json.selections);
+        setSelectedIds(json.selections.map((s: any) => String(s.penerimaId)));
+        setStatusQueue(json.selections.find((s: any) => s.status === "Menunggu") || null);
+      }
+
+      // Update local data count to be responsive
+      const targetIdToUpdate = boxLoveTarget.id;
+      setData(prev => prev.map(item =>
+        item.id === targetIdToUpdate
+          ? { ...item, selectedCount: (item.selectedCount || 0) + 1 }
+          : item
+      ));
+
+      Swal.fire({
         title: "Berhasil Masuk Box Love! 💝",
         html: `Permintaan Anda ke <b>${boxLoveTarget.nama}</b> telah dikirim ke Daftar Antrean Romantic Room. Admin akan menghubungi Anda segera.`,
         icon: "success",
@@ -341,15 +380,6 @@ export default function PublicKatalogPage() {
       });
 
       closeBoxLove();
-
-      // Refresh selection status
-      const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${nomorUnik}&token=${token}`);
-      const selJson = await selRes.json();
-      if (Array.isArray(selJson)) {
-        setSelections(selJson);
-        setSelectedIds(selJson.map((s: any) => s.penerimaId));
-        setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
-      }
     } catch (err: any) {
       Swal.fire("Gagal", err.message, "error");
     } finally {
@@ -393,7 +423,28 @@ export default function PublicKatalogPage() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Gagal melakukan pemilihan");
 
-        await Swal.fire({
+        if (json.selections) {
+          setSelections(json.selections);
+          setSelectedIds(json.selections.map((s: any) => String(s.penerimaId)));
+          setStatusQueue(json.selections.find((s: any) => s.status === "Menunggu") || null);
+        }
+
+        // Update local data count to be responsive
+        setData(prev => prev.map(item =>
+          item.id === targetId
+            ? { ...item, selectedCount: (item.selectedCount || 0) + 1 }
+            : item
+        ));
+
+        // Also update modal state if it's the target
+        if (selectedParticipant && selectedParticipant.id === targetId) {
+          setSelectedParticipant((prev: any) => ({
+            ...prev,
+            selectedCount: (prev.selectedCount || 0) + 1
+          }));
+        }
+
+        Swal.fire({
           title: 'Berhasil!',
           text: 'Pilihan Anda telah dikirim. Sedang dalam antrean admin Romantic Room.',
           icon: 'success',
@@ -402,15 +453,6 @@ export default function PublicKatalogPage() {
         });
 
         closeDetail(); // Close modal if open
-
-        // Refresh selection status instead of redirecting
-        const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${nomorUnik}&token=${token}`);
-        const selJson = await selRes.json();
-        if (Array.isArray(selJson)) {
-          setSelections(selJson);
-          setSelectedIds(selJson.map((s: any) => s.penerimaId));
-          setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
-        }
       } catch (err: any) {
         Swal.fire("Gagal", err.message, "error");
       }
@@ -472,6 +514,10 @@ export default function PublicKatalogPage() {
           onVerified={(userData) => {
             setHasAttended(true);
             setCurrentUser(userData);
+            if (userData.jenisKelamin) {
+              setGender(userData.jenisKelamin === "L" ? "P" : "L");
+            }
+            if (userData.id) fetchUserComments(userData.id);
           }}
         />
         <style jsx>{`
@@ -492,13 +538,12 @@ export default function PublicKatalogPage() {
   }
 
   function LoginModal({ onVerified }: { onVerified: (userData: any) => void }) {
-    const [noUrut, setNoUrut] = useState("");
-    const [noUnik, setNoUnik] = useState("");
+    const [unik, setUnik] = useState("");
     const [status, setStatus] = useState<"idle" | "verifying" | "error" | "waiting">("idle");
     const [errorMsg, setErrorMsg] = useState("");
 
     const verify = async () => {
-      if (!noUrut || !noUnik) return;
+      if (!unik) return;
       setStatus("verifying");
       let deviceId = localStorage.getItem("mandiri_device_id");
       if (!deviceId) {
@@ -507,13 +552,12 @@ export default function PublicKatalogPage() {
       }
 
       try {
-        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorPeserta=${noUrut}&nomorUnik=${noUnik}&deviceId=${deviceId}`);
+        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${unik}&deviceId=${deviceId}`);
         const resData = await res.json();
         if (resData.status === "attended") {
-          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || noUnik);
+          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik);
           localStorage.setItem("attended_session_token", resData.sessionToken);
           localStorage.setItem("attended_nomor_urut_peserta", resData.nomorUrut);
-          localStorage.setItem("attended_no_unik_peserta", noUnik); // For display/debug if needed
           localStorage.setItem("attended_role", resData.role || "Peserta");
           onVerified({
             id: resData.id,
@@ -538,10 +582,10 @@ export default function PublicKatalogPage() {
           setStatus("waiting");
           setErrorMsg("Silakan lakukan absensi terlebih dahulu di meja panitia.");
         } else if (resData.status === "multi_login") {
-          setErrorMsg("Nomor Peserta ini sudah digunakan di perangkat lain (Single Session).");
+          setErrorMsg("Nomor Unik ini sudah digunakan di perangkat lain (Single Session).");
           setStatus("error");
         } else if (resData.status === "not_found") {
-          setErrorMsg("Nomor Peserta tidak ditemukan. Pastikan Anda sudah terdaftar.");
+          setErrorMsg("Nomor Unik tidak ditemukan. Pastikan Anda sudah terdaftar.");
           setStatus("error");
         } else {
           setErrorMsg(resData.error || "Terjadi kesalahan saat verifikasi.");
@@ -559,40 +603,27 @@ export default function PublicKatalogPage() {
           <div className="icon-badge">
             <Lock size={28} className="text-blue-500" />
           </div>
-          <h2>Akses Katalog</h2>
-          <p>Masukkan Nomor Urut dan Kode Unik Anda</p>
+          <h2>Login Katalog</h2>
+          <p>Masukkan Nomor Unik Anda untuk akses penuh</p>
         </div>
 
         <div className="modal-body">
-          <div className="input-group">
-            <div className="input-field">
-              <User size={18} className="input-icon" />
-              <input
-                type="number"
-                placeholder="Nomor Urut (Contoh: 123)"
-                value={noUrut}
-                onChange={(e) => setNoUrut(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && verify()}
-                autoFocus
-              />
-            </div>
-
-            <div className="input-field" style={{ marginTop: "12px" }}>
-              <Lock size={18} className="input-icon" />
-              <input
-                type="text"
-                placeholder="Kode Unik (Contoh: MND123456)"
-                value={noUnik}
-                onChange={(e) => setNoUnik(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && verify()}
-              />
-            </div>
+          <div className="input-field">
+            <User size={18} className="input-icon" />
+            <input
+              type="text"
+              placeholder="Contoh: MND123456 atau PNB123456"
+              value={unik}
+              onChange={(e) => setUnik(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && verify()}
+              autoFocus
+            />
           </div>
 
           <button
             className={`login-btn ${status === "verifying" ? "loading" : ""}`}
             onClick={verify}
-            disabled={status === "verifying" || !noUrut || !noUnik}
+            disabled={status === "verifying" || !unik}
           >
             {status === "verifying" ? (
               <span className="flex items-center gap-2">
@@ -784,10 +815,10 @@ export default function PublicKatalogPage() {
           </div>
           <button className="btn-advanced" onClick={() => {
             setSearch("");
-            setGender("all");
+            setGender(currentUser?.jenisKelamin === "L" ? "P" : (currentUser?.jenisKelamin === "P" ? "L" : "all"));
             setCategory("all");
             setPendidikan("all");
-            setWilayah("all");
+            setSelectedKota("all");
             setDesaFilter("all");
             setPage(1);
           }}>
@@ -818,11 +849,6 @@ export default function PublicKatalogPage() {
             </button>
           </div>
 
-          <div className="toggle-group">
-            <button className={gender === "all" ? "active" : ""} onClick={() => { setGender("all"); setPage(1); }}>Semua</button>
-            <button className={gender === "L" ? "active" : ""} onClick={() => { setGender("L"); setPage(1); }}>L</button>
-            <button className={gender === "P" ? "active" : ""} onClick={() => { setGender("P"); setPage(1); }}>P</button>
-          </div>
 
           <div className="select-container">
             <select
@@ -841,12 +867,12 @@ export default function PublicKatalogPage() {
           <div className="select-container">
             <select
               className="select-box"
-              value={wilayah}
-              onChange={(e) => { setWilayah(e.target.value); setPage(1); }}
+              value={selectedKota}
+              onChange={(e) => { setSelectedKota(e.target.value); setDesaFilter("all"); setPage(1); }}
             >
-              <option value="all">Semua Wilayah</option>
-              {wilayahList.map(w => (
-                <option key={w.id} value={w.id}>{w.nama} ({w.kota})</option>
+              <option value="all">Semua Daerah</option>
+              {kotaList.map(k => (
+                <option key={k} value={k}>{k}</option>
               ))}
             </select>
             <ChevronDown size={14} className="select-arrow" />
@@ -857,10 +883,11 @@ export default function PublicKatalogPage() {
               className="select-box"
               value={desaFilter}
               onChange={(e) => { setDesaFilter(e.target.value); setPage(1); }}
+              disabled={selectedKota === "all"}
             >
               <option value="all">Semua Desa</option>
-              {desaList.map(d => (
-                <option key={d.id} value={d.id}>{d.nama}</option>
+              {wilayahList.filter(w => w.kota === selectedKota).map(w => (
+                <option key={w.id} value={w.id}>{w.nama}</option>
               ))}
             </select>
             <ChevronDown size={14} className="select-arrow" />
@@ -998,12 +1025,12 @@ export default function PublicKatalogPage() {
                     </button>
                     {item.nomorUrut !== currentUser?.nomorUrut && (
                       <button
-                        className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
-                        onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && item.selectedCount < 5 && handleConfirmSelection(item.id, item.nama)}
-                        disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id))}
+                        className={`btn-primary ${selectedIds.includes(String(item.id)) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(String(item.id))) || ((item.selectedCount || 0) >= 5 && !selectedIds.includes(String(item.id))) ? "disabled" : ""}`}
+                        onClick={() => handleConfirmSelection(String(item.id), item.nama)}
+                        disabled={selectedIds.includes(String(item.id)) || (selectedIds.length >= 3 && !selectedIds.includes(String(item.id))) || ((item.selectedCount || 0) >= 5 && !selectedIds.includes(String(item.id)))}
                       >
-                        {selectedIds.includes(item.id) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
-                        <span>{selectedIds.includes(item.id) ? "Terpilih" : (item.selectedCount >= 5 ? "Penuh" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih"))}</span>
+                        {selectedIds.includes(String(item.id)) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
+                        <span>{selectedIds.includes(String(item.id)) ? "Terpilih" : ((item.selectedCount || 0) >= 5 ? "Penuh" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih"))}</span>
                       </button>
                     )}
                   </div>
@@ -1024,7 +1051,6 @@ export default function PublicKatalogPage() {
                                 id={`anon-${item.id}`}
                                 checked={komentarAnon}
                                 onChange={(e) => setKomentarAnon(e.target.checked)}
-                                disabled={sentComments.length > 0}
                               />
                               <label htmlFor={`anon-${item.id}`}>Anonim</label>
                             </div>
@@ -1035,12 +1061,12 @@ export default function PublicKatalogPage() {
                                 placeholder="Nama Anda..."
                                 value={komentarNama}
                                 onChange={(e) => setKomentarNama(e.target.value)}
-                                disabled={!!currentUser || sentComments.length > 0}
+                                disabled={!!currentUser}
                               />
                             )}
                           </div>
                           <div className="comment-tags-label">
-                            {sentComments.length > 0 ? "Batas komentar tercapai" : "Berikan Komentar Singkat:"}
+                            Berikan Komentar Singkat:
                           </div>
                           <div className="comment-buttons">
                             {["Humble", "Baik", "Pendiam", "Penyabar", "Friendly"].map(tag => (
@@ -1048,7 +1074,7 @@ export default function PublicKatalogPage() {
                                 key={tag}
                                 className={`btn-tag ${submittingKomentar === item.id ? "loading" : ""}`}
                                 onClick={() => handleSendKomentar(item.id, item.nama, tag)}
-                                disabled={!!submittingKomentar || sentComments.length > 0}
+                                disabled={!!submittingKomentar}
                               >
                                 {tag}
                               </button>
@@ -1181,12 +1207,12 @@ export default function PublicKatalogPage() {
                 <div className="modal-cta-area">
                   {selectedParticipant.nomorUrut !== currentUser?.nomorUrut ? (
                     <button
-                      className={`btn-action-main ${selectedIds.includes(selectedParticipant.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) || (selectedParticipant.selectedCount >= 5 && !selectedIds.includes(selectedParticipant.id)) ? "disabled" : ""}`}
-                      onClick={() => !selectedIds.includes(selectedParticipant.id) && selectedIds.length < 3 && selectedParticipant.selectedCount < 5 && handleConfirmSelection(selectedParticipant.id, selectedParticipant.nama)}
-                      disabled={selectedIds.includes(selectedParticipant.id) || (selectedIds.length >= 3 && !selectedIds.includes(selectedParticipant.id)) || (selectedParticipant.selectedCount >= 5 && !selectedIds.includes(selectedParticipant.id))}
+                      className={`btn-action-main ${selectedIds.includes(String(selectedParticipant.id)) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(String(selectedParticipant.id))) || ((selectedParticipant.selectedCount || 0) >= 5 && !selectedIds.includes(String(selectedParticipant.id))) ? "disabled" : ""}`}
+                      onClick={() => handleConfirmSelection(String(selectedParticipant.id), selectedParticipant.nama)}
+                      disabled={selectedIds.includes(String(selectedParticipant.id)) || (selectedIds.length >= 3 && !selectedIds.includes(String(selectedParticipant.id))) || ((selectedParticipant.selectedCount || 0) >= 5 && !selectedIds.includes(String(selectedParticipant.id)))}
                     >
-                      {selectedIds.includes(selectedParticipant.id) ? <CheckCircle2 size={18} /> : <Heart size={18} />}
-                      <span>{selectedIds.includes(selectedParticipant.id) ? "Terpilih" : (selectedParticipant.selectedCount >= 5 ? "Peserta Sudah Penuh (5/5)" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini"))}</span>
+                      {selectedIds.includes(String(selectedParticipant.id)) ? <CheckCircle2 size={18} /> : <Heart size={18} />}
+                      <span>{selectedIds.includes(String(selectedParticipant.id)) ? "Terpilih" : ((selectedParticipant.selectedCount || 0) >= 5 ? "Peserta Sudah Penuh (5/5)" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini"))}</span>
                     </button>
                   ) : (
                     <button className="btn-action-main disabled" disabled>
@@ -1201,131 +1227,137 @@ export default function PublicKatalogPage() {
       )}
 
       {/* BOX LOVE FLOATING BUTTON */}
-      {boxLoveStatus === "open" && (
-        <button className="box-love-fab" onClick={openBoxLove} title="Box Love">
-          <Heart size={24} fill="white" />
-          <span>Box Love</span>
-        </button>
-      )}
+      {
+        boxLoveStatus === "open" && (
+          <button className="box-love-fab" onClick={openBoxLove} title="Box Love">
+            <Heart size={24} fill="white" />
+            <span>Box Love</span>
+          </button>
+        )
+      }
 
       {/* BOX LOVE POPUP */}
-      {isBoxLoveOpen && (
-        <div className="bl-overlay" onClick={closeBoxLove}>
-          <div className="bl-popup" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="bl-header">
-              <div className="bl-logo">
-                <div className="bl-logo-icon">💝</div>
-                <div>
-                  <h2 className="bl-title">Box Love</h2>
-                  <p className="bl-subtitle">Ingin berkenalan? Masukkan ke Box Love!</p>
-                </div>
-              </div>
-              <button className="bl-close" onClick={closeBoxLove}><X size={20} /></button>
-            </div>
-
-            <div className="bl-notice">
-              <span>🔔 Admin akan menghubungi Anda untuk Romantic Room</span>
-            </div>
-
-            <div className="bl-body">
-              {/* My Info (auto-filled) */}
-              <div className="bl-section">
-                <div className="bl-section-label">
-                  <span>{currentUser?.jenisKelamin === "P" ? "👩" : "👨"}</span>
-                  <span>Peserta {currentUser?.jenisKelamin === "L" ? "Laki-laki" : "Perempuan"}</span>
-                </div>
-                <div className="bl-my-info">
-                  <div className="bl-my-avatar">
-                    {currentUser?.foto ? <img src={currentUser.foto} alt={currentUser.nama} /> : <span>{currentUser?.nama?.charAt(0) || "?"}</span>}
-                  </div>
+      {
+        isBoxLoveOpen && (
+          <div className="bl-overlay" onClick={closeBoxLove}>
+            <div className="bl-popup" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="bl-header">
+                <div className="bl-logo">
+                  <div className="bl-logo-icon">💝</div>
                   <div>
-                    <div className="bl-my-name">#{currentUser?.nomorUrut} {currentUser?.nama}</div>
-                    <div className="bl-my-loc">{currentUser?.mandiriDesaKota || "-"}</div>
+                    <h2 className="bl-title">Box Love</h2>
+                    <p className="bl-subtitle">Ingin berkenalan? Masukkan ke Box Love!</p>
                   </div>
-                  <CheckCircle2 size={20} className="bl-check" />
+                </div>
+                <button className="bl-close" onClick={closeBoxLove}><X size={20} /></button>
+              </div>
+
+              <div className="bl-notice">
+                <span>🔔 Admin akan menghubungi Anda untuk Romantic Room</span>
+              </div>
+
+              <div className="bl-body">
+                {/* My Info (auto-filled) */}
+                <div className="bl-section">
+                  <div className="bl-section-label">
+                    <span>{currentUser?.jenisKelamin === "P" ? "👩" : "👨"}</span>
+                    <span>Peserta {currentUser?.jenisKelamin === "L" ? "Laki-laki" : "Perempuan"}</span>
+                  </div>
+                  <div className="bl-my-info">
+                    <div className="bl-my-avatar">
+                      {currentUser?.foto ? <img src={currentUser.foto} alt={currentUser.nama} /> : <span>{currentUser?.nama?.charAt(0) || "?"}</span>}
+                    </div>
+                    <div>
+                      <div className="bl-my-name">#{currentUser?.nomorUrut} {currentUser?.nama}</div>
+                      <div className="bl-my-loc">{currentUser?.mandiriDesaKota || "-"}</div>
+                    </div>
+                    <CheckCircle2 size={20} className="bl-check" />
+                  </div>
+                </div>
+
+                <div className="bl-heart-divider">💗</div>
+
+                {/* Search opposite gender */}
+                <div className="bl-section">
+                  <div className="bl-section-label">
+                    <span>{currentUser?.jenisKelamin === "L" ? "👩" : "👨"}</span>
+                    <span>Peserta {currentUser?.jenisKelamin === "L" ? "Perempuan" : "Laki-laki"}</span>
+                  </div>
+                  <div className="bl-search-bar">
+                    <input
+                      type="text"
+                      placeholder={`Nomor peserta (${currentUser?.jenisKelamin === "L" ? "200-299" : "1-199"})`}
+                      value={boxLoveSearch}
+                      onChange={e => searchBoxLove(e.target.value)}
+                    />
+                    <Search size={18} className="bl-search-icon" />
+                  </div>
+
+                  {boxLoveLoading && <div className="bl-loading">Mencari...</div>}
+
+                  {boxLoveResults.length > 0 && (
+                    <div className="bl-results">
+                      {boxLoveResults.map(r => (
+                        <div
+                          key={r.id}
+                          className={`bl-result-item ${boxLoveTarget?.id === r.id ? "selected" : ""}`}
+                          onClick={() => setBoxLoveTarget(r)}
+                        >
+                          <div className="bl-result-avatar">
+                            {r.foto ? <img src={r.foto} alt={r.nama} /> : <span>{r.nama?.charAt(0)}</span>}
+                          </div>
+                          <div className="bl-result-info">
+                            <div className="bl-result-name">#{r.nomorUrut} {r.nama}</div>
+                            <div className="bl-result-loc">{r.mandiriDesaKota || "-"} • {r.mandiriDesaNama || "-"}</div>
+                          </div>
+                          {boxLoveTarget?.id === r.id && <CheckCircle2 size={18} className="bl-check" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {boxLoveSearch.length > 0 && !boxLoveLoading && boxLoveResults.length === 0 && (
+                    <div className="bl-empty">Peserta tidak ditemukan</div>
+                  )}
                 </div>
               </div>
 
-              <div className="bl-heart-divider">💗</div>
-
-              {/* Search opposite gender */}
-              <div className="bl-section">
-                <div className="bl-section-label">
-                  <span>{currentUser?.jenisKelamin === "L" ? "👩" : "👨"}</span>
-                  <span>Peserta {currentUser?.jenisKelamin === "L" ? "Perempuan" : "Laki-laki"}</span>
-                </div>
-                <div className="bl-search-bar">
-                  <input
-                    type="text"
-                    placeholder={`Nomor peserta (${currentUser?.jenisKelamin === "L" ? "200-299" : "1-199"})`}
-                    value={boxLoveSearch}
-                    onChange={e => searchBoxLove(e.target.value)}
-                  />
-                  <Search size={18} className="bl-search-icon" />
-                </div>
-
-                {boxLoveLoading && <div className="bl-loading">Mencari...</div>}
-
-                {boxLoveResults.length > 0 && (
-                  <div className="bl-results">
-                    {boxLoveResults.map(r => (
-                      <div
-                        key={r.id}
-                        className={`bl-result-item ${boxLoveTarget?.id === r.id ? "selected" : ""}`}
-                        onClick={() => setBoxLoveTarget(r)}
-                      >
-                        <div className="bl-result-avatar">
-                          {r.foto ? <img src={r.foto} alt={r.nama} /> : <span>{r.nama?.charAt(0)}</span>}
-                        </div>
-                        <div className="bl-result-info">
-                          <div className="bl-result-name">#{r.nomorUrut} {r.nama}</div>
-                          <div className="bl-result-loc">{r.mandiriDesaKota || "-"} • {r.mandiriDesaNama || "-"}</div>
-                        </div>
-                        {boxLoveTarget?.id === r.id && <CheckCircle2 size={18} className="bl-check" />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {boxLoveSearch.length > 0 && !boxLoveLoading && boxLoveResults.length === 0 && (
-                  <div className="bl-empty">Peserta tidak ditemukan</div>
-                )}
+              <div className="bl-footer">
+                <button
+                  className="bl-submit-btn"
+                  onClick={handleBoxLoveSubmit}
+                  disabled={!boxLoveTarget || boxLoveSubmitting}
+                >
+                  <Heart size={18} fill="white" />
+                  <span>{boxLoveSubmitting ? "Mengirim..." : "Masukkan Box Love 💌"}</span>
+                </button>
+                <p className="bl-footer-note">Setelah dikirim, Admin Romantic Room akan memanggil Anda berdua untuk sesi perkenalan di Romantic Room.</p>
               </div>
             </div>
+          </div>
+        )
+      }
 
-            <div className="bl-footer">
-              <button
-                className="bl-submit-btn"
-                onClick={handleBoxLoveSubmit}
-                disabled={!boxLoveTarget || boxLoveSubmitting}
-              >
-                <Heart size={18} fill="white" />
-                <span>{boxLoveSubmitting ? "Mengirim..." : "Masukkan Box Love 💌"}</span>
-              </button>
-              <p className="bl-footer-note">Setelah dikirim, Admin Romantic Room akan memanggil Anda berdua untuk sesi perkenalan di Romantic Room.</p>
+      {
+        totalPages > 1 && (
+          <div className="pagination">
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>Sebelumnya</button>
+            <div className="page-numbers">
+              {[...Array(Math.min(5, totalPages))].map((_, i) => (
+                <button
+                  key={i}
+                  className={page === i + 1 ? "active" : ""}
+                  onClick={() => setPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              ))}
             </div>
+            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Berikutnya</button>
           </div>
-        </div>
-      )}
-
-      {totalPages > 1 && (
-        <div className="pagination">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>Sebelumnya</button>
-          <div className="page-numbers">
-            {[...Array(Math.min(5, totalPages))].map((_, i) => (
-              <button
-                key={i}
-                className={page === i + 1 ? "active" : ""}
-                onClick={() => setPage(i + 1)}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Berikutnya</button>
-        </div>
-      )}
+        )
+      }
 
       <style jsx>{`
         .container {
@@ -1803,7 +1835,7 @@ export default function PublicKatalogPage() {
           inset: 0;
           background: rgba(15, 23, 42, 0.75);
           backdrop-filter: blur(8px);
-          z-index: 9999;
+          z-index: 1000;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2061,7 +2093,7 @@ export default function PublicKatalogPage() {
           inset: 0;
           background: rgba(15, 23, 42, 0.55);
           backdrop-filter: blur(12px);
-          z-index: 1000;
+          z-index: 900;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -2713,92 +2745,104 @@ export default function PublicKatalogPage() {
           border-radius: 32px;
           border: 2px dashed #e2e8f0;
         }
+
+        /* SweetAlert2 Z-Index Override */
+        :global(.swal2-container) {
+          z-index: 10000 !important;
+        }
       `}</style>
 
       {/* COMMENTS MODAL */}
-      {isCommentsModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsCommentsModalOpen(false)}>
-          <div className="modal-box comments-modal-box" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="icon-badge">
-                <MessageSquare size={28} className="text-blue-500" />
-              </div>
-              <h2>Pusat Komentar</h2>
-              <p>Kelola komentar masuk dan pantau jejak Anda</p>
-              <button className="modal-close-btn" onClick={() => setIsCommentsModalOpen(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {/* Sent Comments Section (Jejak/Histori) */}
-              <div className="comment-section-tabs">
-                <h3 className="tab-title sent">Jejak Komentar Saya</h3>
-                <div className="comments-list sent">
-                  {sentComments.length > 0 ? (
-                    sentComments.map((c) => (
-                      <div key={c.id} className="comment-item sent">
-                        <div className="comment-bubble sent-red">
-                          <div className="sent-indicator">🚩 JEJAK TERKIRIM</div>
-                          <p className="comment-text">"{c.komentar}"</p>
-                          <div className="comment-meta">
-                            <span className="author-label text-red-500">DIBLOKIR: AKSES BERAKHIR</span>
-                            <span className="comment-date red">{new Date(c.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="no-comments mini">
-                      <p>Anda belum mengirimkan komentar.</p>
-                    </div>
-                  )}
+      {
+        isCommentsModalOpen && (
+          <div className="modal-overlay" onClick={() => setIsCommentsModalOpen(false)}>
+            <div className="modal-box comments-modal-box" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div className="icon-badge">
+                  <MessageSquare size={28} className="text-blue-500" />
                 </div>
+                <h2>Pusat Komentar</h2>
+                <p>Kelola komentar masuk dan pantau jejak Anda</p>
+                <button className="modal-close-btn" onClick={() => setIsCommentsModalOpen(false)}>
+                  <X size={24} />
+                </button>
               </div>
 
-              <div className="spacer-modal" />
-
-              {/* Received Comments Section */}
-              <div className="comment-section-tabs">
-                <h3 className="tab-title">Komentar Untuk Anda</h3>
-                <div className="comments-list">
-                  {userComments.length > 0 ? (
-                    userComments.map((c) => (
-                      <div key={c.id} className="comment-item">
-                        <div className="comment-bubble">
-                          <div className="comment-icon">
-                            <MessageSquare size={16} fill="#3b82f6" color="#3b82f6" />
-                          </div>
-                          <p className="comment-text">"{c.komentar}"</p>
-                          <div className="comment-meta">
-                            <div className="author-info">
-                              <span className="author-label">Dari:</span>
-                              <span className="comment-author">{c.pengirimNama || "Seseorang"}</span>
+              <div className="modal-body">
+                {/* Sent Comments Section (Jejak/Histori) */}
+                <div className="comment-section-tabs">
+                  <h3 className="tab-title sent">Jejak Komentar Saya</h3>
+                  <div className="comments-list sent">
+                    {sentComments.length > 0 ? (
+                      sentComments.map((c) => (
+                        <div key={c.id} className="comment-item sent">
+                          <div className="comment-bubble sent-red">
+                            <div className="sent-indicator">🚩 JEJAK TERKIRIM</div>
+                            <p className="comment-text">"{c.komentar}"</p>
+                            <div className="comment-meta">
+                              <div className="author-info">
+                                <span className="author-label text-red-500">Untuk:</span>
+                                <span className="comment-author">#{c.penerimaNoUrut} {c.penerimaNama}</span>
+                              </div>
+                              <span className="comment-date red">{new Date(c.createdAt).toLocaleDateString()}</span>
                             </div>
-                            <span className="comment-date">
-                              {new Date(c.createdAt).toLocaleDateString('id-ID', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
                           </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="no-comments mini">
+                        <p>Anda belum mengirimkan komentar.</p>
                       </div>
-                    ))
-                  ) : (
-                    <div className="no-comments">
-                      <Heart size={48} style={{ marginBottom: "16px", color: "#e2e8f0" }} />
-                      <p>Belum ada komentar untuk Anda.</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </div>
+
+                <div className="spacer-modal" />
+
+                {/* Received Comments Section */}
+                <div className="comment-section-tabs">
+                  <h3 className="tab-title">Komentar Untuk Anda</h3>
+                  <div className="comments-list">
+                    {userComments.length > 0 ? (
+                      userComments.map((c) => (
+                        <div key={c.id} className="comment-item">
+                          <div className="comment-bubble">
+                            <div className="comment-icon">
+                              <MessageSquare size={16} fill="#3b82f6" color="#3b82f6" />
+                            </div>
+                            <p className="comment-text">"{c.komentar}"</p>
+                            <div className="comment-meta">
+                              <div className="author-info">
+                                <span className="author-label">Dari:</span>
+                                <span className="comment-author">
+                                  {c.isAnonim ? "Anonim" : (c.realPengirimNama || c.pengirimNama || "Seseorang")}
+                                  {c.realPengirimNoUrut && !c.isAnonim && ` (#${c.realPengirimNoUrut})`}
+                                </span>
+                              </div>
+                              <span className="comment-date">
+                                {new Date(c.createdAt).toLocaleDateString('id-ID', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="no-comments">
+                        <Heart size={48} style={{ marginBottom: "16px", color: "#e2e8f0" }} />
+                        <p>Belum ada komentar untuk Anda.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

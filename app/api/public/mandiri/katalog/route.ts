@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, settings, formPanitiaDanPengurus } from "@/lib/schema";
-import { eq, and, or, like, sql, isNull, isNotNull } from "drizzle-orm";
+import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, settings, formPanitiaDanPengurus, mandiriKegiatan, mandiriAbsensi } from "@/lib/schema";
+import { eq, and, or, like, sql, isNull, isNotNull, desc } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +33,15 @@ export async function GET(request: NextRequest) {
     if (!isPublicOpen && !isAuthorizedModifier) {
       return NextResponse.json({ error: "Katalog sedang tidak dibuka untuk publik." }, { status: 403 });
     }
+
+    // 2. Get latest activity to filter by attendance
+    const latestActivity = await db.select().from(mandiriKegiatan).orderBy(desc(mandiriKegiatan.tanggal)).limit(1);
+    const kegiatanId = latestActivity[0]?.id;
+
+    if (!kegiatanId) {
+      return NextResponse.json({ data: [], total: 0, page: Number(searchParams.get("page") || "1"), limit: Number(searchParams.get("limit") || "20") });
+    }
+
     const search = (searchParams.get("search") || "").trim();
     const page = Number(searchParams.get("page") || "1");
     const limit = Number(searchParams.get("limit") || "20");
@@ -42,6 +51,7 @@ export async function GET(request: NextRequest) {
     const pendidikan = searchParams.get("pendidikan") || "all";
     const mandiriDesaId = searchParams.get("mandiriDesaId") || "all";
     const desaId = searchParams.get("desaId") || "all";
+    const kota = searchParams.get("kota") || "all";
 
     // Build conditions
     const conditions: any[] = [];
@@ -99,9 +109,16 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(generus.mandiriDesaId, Number(mandiriDesaId)));
     }
 
+    if (kota && kota !== "all") {
+      conditions.push(eq(mandiriDesa.kota, kota));
+    }
+
     if (desaId && desaId !== "all") {
       conditions.push(eq(generus.desaId, Number(desaId)));
     }
+
+    // Only show those who have attended
+    conditions.push(eq(mandiriAbsensi.kegiatanId, kegiatanId));
 
     const finalWhere = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -142,6 +159,7 @@ export async function GET(request: NextRequest) {
       })
       .from(generus)
       .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
+      .innerJoin(mandiriAbsensi, eq(generus.id, mandiriAbsensi.generusId))
       .leftJoin(desa, eq(generus.desaId, desa.id))
       .leftJoin(kelompok, eq(generus.kelompokId, kelompok.id))
       .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
@@ -149,16 +167,27 @@ export async function GET(request: NextRequest) {
       .leftJoin(usersOld, eq(generus.id, usersOld.generusId))
       .leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
 
-    // Count Query - MUST have same joins as dataQuery for conditions that use joined tables
+    // Count Query - only join mandiri (required)
     const countQuery = db
       .select({ count: sql<number>`count(*)` })
       .from(generus)
       .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
-      .leftJoin(usersOld, eq(generus.id, usersOld.generusId))
-      .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
-      .leftJoin(desa, eq(generus.desaId, desa.id))
-      .leftJoin(kelompok, eq(generus.kelompokId, kelompok.id))
-      .leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
+      .innerJoin(mandiriAbsensi, eq(generus.id, mandiriAbsensi.generusId));
+
+    // Dynamic joins for count query if filters are present
+    if (search || status !== "all") {
+        countQuery.leftJoin(usersOld, eq(generus.id, usersOld.generusId));
+        countQuery.leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
+    }
+    if (search || mandiriDesaId !== "all" || kota !== "all") {
+        countQuery.leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id));
+    }
+    if (search || desaId !== "all") {
+        countQuery.leftJoin(desa, eq(generus.desaId, desa.id));
+    }
+    if (search) {
+        countQuery.leftJoin(kelompok, eq(generus.kelompokId, kelompok.id));
+    }
 
     const [data, countResult] = await Promise.all([
       dataQuery

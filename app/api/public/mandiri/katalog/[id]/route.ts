@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, settings } from "@/lib/schema";
-import { eq, sql } from "drizzle-orm";
+import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, settings, mandiriKegiatan, mandiriAbsensi } from "@/lib/schema";
+import { eq, sql, and, desc } from "drizzle-orm";
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -12,6 +12,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const publicStatus = await db.select().from(settings).where(eq(settings.key, "mandiri_katalog_public_status"));
     if (!publicStatus[0] || publicStatus[0].value !== "open") {
       return NextResponse.json({ error: "Katalog sedang tidak dibuka untuk publik." }, { status: 403 });
+    }
+
+    // 2. Get latest activity to filter by attendance
+    const latestActivity = await db.select().from(mandiriKegiatan).orderBy(desc(mandiriKegiatan.tanggal)).limit(1);
+    const kegiatanId = latestActivity[0]?.id;
+
+    if (!kegiatanId) {
+      return NextResponse.json({ error: "Data tidak ditemukan (Belum absensi)" }, { status: 404 });
     }
 
     const data = await db
@@ -44,12 +52,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       })
       .from(generus)
       .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
+      .innerJoin(mandiriAbsensi, eq(generus.id, mandiriAbsensi.generusId))
       .leftJoin(desa, eq(generus.desaId, desa.id))
       .leftJoin(kelompok, eq(generus.kelompokId, kelompok.id))
       .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
       .leftJoin(mandiriKelompok, eq(generus.mandiriKelompokId, mandiriKelompok.id))
       .leftJoin(usersOld, eq(generus.id, usersOld.generusId))
-      .where(eq(generus.id, id))
+      .where(and(
+        eq(generus.id, id),
+        eq(mandiriAbsensi.kegiatanId, kegiatanId)
+      ))
       .limit(1);
 
     if (data.length === 0) {

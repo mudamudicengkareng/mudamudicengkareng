@@ -244,7 +244,10 @@ export const mandiriPemilihan = sqliteTable("mandiri_pemilihan", {
   hasilPengirim: text("hasil_pengirim"), // Lanjut / Tidak Lanjut
   hasilPenerima: text("hasil_penerima"), // Lanjut / Tidak Lanjut
   createdAt: text("created_at").default(sql`(datetime('now'))`),
-});
+}, (table) => ({
+  pengirimIdIdx: index("mandiri_pemilihan_pengirim_id_idx").on(table.pengirimId),
+  penerimaIdIdx: index("mandiri_pemilihan_penerima_id_idx").on(table.penerimaId),
+}));
 
 export const mandiriRooms = sqliteTable("mandiri_rooms", {
   id: text("id").primaryKey(),

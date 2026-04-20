@@ -8,9 +8,10 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet
+  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText
 } from "lucide-react";
 import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { utils, writeFile } from "xlsx";
 
@@ -331,6 +332,124 @@ export default function AdminKatalogPage() {
     }
   };
 
+  const handleExportKatalogPDF = async () => {
+    Swal.fire({
+      title: "Menyiapkan PDF Katalog...",
+      text: "Sedang mengambil data dan menyusun laporan. Harap tunggu sebentar.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const params = new URLSearchParams({
+        search,
+        all: "true",
+        mandiriOnly: "true",
+        jenisKelamin: gender,
+        status: status,
+        pendidikan: pendidikan,
+        mandiriDesaId: selectedRegion,
+        desaId: selectedDesa
+      });
+      const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      const allParticipants: GenerusItem[] = json.data || [];
+
+      if (allParticipants.length === 0) {
+        Swal.fire("Info", "Tidak ada data untuk diekspor", "info");
+        return;
+      }
+
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4"
+      });
+
+      // Simple Branding / Header
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(30, 58, 138); // Primary blue
+      doc.rect(0, 0, pageWidth, 40, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("KATALOG LENGKAP PESERTA", 15, 20);
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(latestActivity?.judul || "Daftar Peserta Aktif", 15, 28);
+      doc.text(`Total: ${allParticipants.length} Orang`, 15, 34);
+
+      doc.setFontSize(9);
+      doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth - 15, 34, { align: "right" });
+
+      // Table Data
+      const tableColumn = ["No", "Nama Lengkap", "L/P", "Usia", "Status", "Wilayah / Desa", "Kontak / Sosial Media", "Pendidikan & Pekerjaan"];
+      const tableRows = allParticipants.map((item, index) => [
+        index + 1,
+        item.nama.toUpperCase(),
+        item.jenisKelamin || "-",
+        calculateAge(item.tanggalLahir ?? undefined),
+        (item.panitiaStatus || item.role === 'admin') ? "PANITIA" : "PESERTA",
+        `${item.mandiriDesaKota || "-"}\n${item.mandiriDesaNama || item.desaNama || "-"}`,
+        `${item.noTelp || "-"}\n${item.instagram ? '@' + item.instagram.replace('@', '') : "-"}`,
+        `${item.pendidikan || "-"}\n${item.pekerjaan || "-"}`
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [30, 58, 138],
+          textColor: 255,
+          fontSize: 9,
+          halign: 'center',
+          valign: 'middle',
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [30, 41, 59],
+          valign: 'middle'
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          1: { fontStyle: 'bold', cellWidth: 50 },
+          2: { halign: 'center', cellWidth: 10 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          5: { cellWidth: 45 },
+          6: { cellWidth: 45 },
+          7: { cellWidth: 45 },
+        },
+        margin: { left: 15, right: 15, bottom: 20 },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Halaman ${data.pageNumber} dari ${pageCount}`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: "center" });
+          doc.text("Sistem Informasi Katalog Peserta - jb2.id", 15, doc.internal.pageSize.height - 10);
+        }
+      });
+
+      doc.save(`KATALOG_PESERTA_${new Date().getTime()}.pdf`);
+      Swal.fire("Berhasil", "Laporan PDF telah berhasil diunduh.", "success");
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Gagal", "Terjadi kesalahan saat membuat PDF", "error");
+    }
+  };
+
   const handleExportExcel = async () => {
     Swal.fire({
       title: "Menyiapkan Excel...",
@@ -357,10 +476,6 @@ export default function AdminKatalogPage() {
       // Cukup gunakan window.location.href untuk mendownload file dari server
       window.location.href = `/api/generus?${params.toString()}`;
 
-      // Tutup swal setelah jeda singkat
-      setTimeout(() => {
-        Swal.close();
-      }, 2000);
     } catch (e) {
       console.error(e);
       Swal.fire("Gagal", "Gagal mengekspor Excel", "error");
@@ -421,6 +536,10 @@ export default function AdminKatalogPage() {
             <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }} onClick={handleExportExcel}>
               <FileSpreadsheet size={16} />
               <span>Export Excel</span>
+            </button>
+            <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)' }} onClick={handleExportKatalogPDF}>
+              <FileText size={16} />
+              <span>Export PDF</span>
             </button>
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />
