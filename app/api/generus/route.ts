@@ -5,6 +5,7 @@ import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompo
 import { eq, and, or, like, sql, not, isNull, isNotNull, ne, inArray, notInArray } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
+import * as XLSX from "xlsx-js-style"; // Import library styling
 
 function generateNomorUnik() {
   const prefix = "GNR";
@@ -13,8 +14,8 @@ function generateNomorUnik() {
 }
 
 function buildWhereClause(
-  session: Awaited<ReturnType<typeof getSession>>, 
-  search?: string, 
+  session: Awaited<ReturnType<typeof getSession>>,
+  search?: string,
   ignoreRoleRestriction?: boolean,
   statusNikah?: string,
   desaId?: string,
@@ -28,11 +29,11 @@ function buildWhereClause(
   mandiriDesaId?: string
 ) {
   const conditions: any[] = [];
-  
+
   if (isGenerus) {
     conditions.push(eq(generus.isGenerus, 1));
   }
-  
+
   if (notInMandiri) {
     conditions.push(isNull(mandiri.id));
   }
@@ -121,12 +122,13 @@ function buildWhereClause(
       )
     );
   } else if (status === "all" && isGenerus) {
-     // If we are in the main Data Generus view (isGenerus=1), we can skip the role check join 
-     // for the 'all' view to maximize performance. The isGenerus flag is our source of truth here.
+    // If we are in the main Data Generus view (isGenerus=1), we can skip the role check join 
+    // for the 'all' view to maximize performance. The isGenerus flag is our source of truth here.
   }
 
   return (conditions.length > 0 ? and(...conditions) : undefined) as any;
 }
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -135,101 +137,47 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = (searchParams.get("search") || "").trim();
-    const statusNikah = searchParams.get("statusNikah") || "all";
-    const desaId = searchParams.get("desaId") || "";
-    const mandiriDesaId = searchParams.get("mandiriDesaId") || "";
-    const kelompokId = searchParams.get("kelompokId") || "";
-    const page = Number(searchParams.get("page") || "1");
-    const limit = Number(searchParams.get("limit") || "10");
+    const downloadExcel = searchParams.get("download") === "true";
     const all = searchParams.get("all") === "true";
     const mandiriOnly = searchParams.get("mandiriOnly") === "true";
-    let notInMandiri = searchParams.get("notInMandiri") === "true";
-    let filterIsGenerus = false;
-
-    if (!all && !mandiriOnly) {
-      filterIsGenerus = true;
-    }
-
-    const jenisKelamin = searchParams.get("jenisKelamin") || "all";
-    const status = searchParams.get("status") || "all";
-    const kategoriUsia = searchParams.get("kategoriUsia") || "all";
-    const pendidikan = searchParams.get("pendidikan") || "all";
+    const page = Number(searchParams.get("page") || "1");
+    const limit = Number(searchParams.get("limit") || "10");
     const offset = (page - 1) * limit;
 
     const finalWhere = buildWhereClause(
-      session, search, all, statusNikah, desaId, kelompokId, 
-      jenisKelamin, status, kategoriUsia, notInMandiri, filterIsGenerus,
-      pendidikan, mandiriDesaId
+      session, search, all,
+      searchParams.get("statusNikah") || "all",
+      searchParams.get("desaId") || "",
+      searchParams.get("kelompokId") || "",
+      searchParams.get("jenisKelamin") || "all",
+      searchParams.get("status") || "all",
+      searchParams.get("kategoriUsia") || "all",
+      searchParams.get("notInMandiri") === "true",
+      (!all && !mandiriOnly),
+      searchParams.get("pendidikan") || "all",
+      searchParams.get("mandiriDesaId") || ""
     );
 
-    const isExport = all === true;
     const canSeePrivateData = ["admin", "kmm_daerah", "admin_romantic_room", "pengurus_daerah", "tim_pnkb"].includes(session.role);
 
-    // Common select object to avoid duplication and missing fields
+    // Common Select - Pastikan nama field sesuai
     const commonSelect = {
-        id: generus.id,
-        nomorUnik: generus.nomorUnik,
-        nama: generus.nama,
-        email: usersOld.email,
-        role: usersOld.role,
-        desaNama: desa.nama,
-        kelompokNama: kelompok.nama,
-        foto: generus.foto,
-        instagram: generus.instagram,
-        tanggalLahir: generus.tanggalLahir,
-        tempatLahir: generus.tempatLahir,
-        kategoriUsia: generus.kategoriUsia,
-        jenisKelamin: generus.jenisKelamin,
-        nomorUrut: mandiri.nomorUrut,
-        mandiriDesaNama: mandiriDesa.nama,
-        mandiriDesaKota: mandiriDesa.kota,
-        mandiriKelompokNama: mandiriKelompok.nama,
-        // Added missing fields for Katalog view
-        noTelp: canSeePrivateData ? generus.noTelp : sql`NULL`,
-        alamat: generus.alamat,
-        pendidikan: generus.pendidikan,
-        pekerjaan: generus.pekerjaan,
-        statusNikah: generus.statusNikah,
-        suku: generus.suku,
-        hobi: generus.hobi,
-        makananMinumanFavorit: generus.makananMinumanFavorit,
-        createdAt: generus.createdAt,
-        panitiaStatus: formPanitiaDanPengurus.dapukan,
+      id: generus.id,
+      nama: generus.nama,
+      jenisKelamin: generus.jenisKelamin,
+      nomorUrut: mandiri.nomorUrut,
+      desaNama: desa.nama,
+      mandiriDesaNama: mandiriDesa.nama,
+      pendidikan: generus.pendidikan,
+      statusNikah: generus.statusNikah,
+      noTelp: canSeePrivateData ? generus.noTelp : sql<string | null>`NULL`,
     };
-
-    if (isExport) {
-      let query = db
-        .select(commonSelect)
-        .from(generus)
-        .leftJoin(usersOld, eq(generus.id, usersOld.generusId))
-        .leftJoin(desa, eq(generus.desaId, desa.id))
-        .leftJoin(kelompok, eq(generus.kelompokId, kelompok.id))
-        .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
-        .leftJoin(mandiriKelompok, eq(generus.mandiriKelompokId, mandiriKelompok.id))
-        .leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
-
-      if (mandiriOnly) {
-        query = (query as any).innerJoin(mandiri, eq(generus.id, mandiri.generusId));
-      } else {
-        query = (query as any).leftJoin(mandiri, eq(generus.id, mandiri.generusId));
-      }
-
-      const data = await query.where(finalWhere).orderBy(generus.nama);
-
-      return NextResponse.json(
-        { data, total: data.length, page: 1, limit: data.length },
-        { headers: { "Cache-Control": "private, max-age=60" } }
-      );
-    }
 
     let dataQuery = db
       .select(commonSelect)
       .from(generus)
       .leftJoin(desa, eq(generus.desaId, desa.id))
-      .leftJoin(kelompok, eq(generus.kelompokId, kelompok.id))
-      .leftJoin(usersOld, eq(generus.id, usersOld.generusId))
       .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
-      .leftJoin(mandiriKelompok, eq(generus.mandiriKelompokId, mandiriKelompok.id))
       .leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
 
     if (mandiriOnly) {
@@ -238,59 +186,104 @@ export async function GET(request: NextRequest) {
       dataQuery = (dataQuery as any).leftJoin(mandiri, eq(generus.id, mandiri.generusId));
     }
 
-    // Optimized Count Query: Avoid unnecessary joins for simple counts
-    const countQuery = db
-      .select({ count: sql<number>`count(*)` })
-      .from(generus);
+    // --- LOGIKA EXPORT EXCEL ---
+    if (downloadExcel) {
+      // Jalankan query untuk mengambil SEMUA data sesuai filter (tanpa limit)
+      const rawData = await dataQuery.where(finalWhere).orderBy(generus.nama);
 
-    // Only join usersOld if status filtering is happening and it's not simply 'all'
-    if (status !== "all" || search) {
-      countQuery.leftJoin(usersOld, eq(generus.id, usersOld.generusId));
+      // 1. Definisikan Header (Tanpa Daerah)
+      const header = ["NO", "NO. URUT", "NAMA LENGKAP", "L/P", "DESA/CABANG", "PENDIDIKAN", "STATUS"];
+
+      // 2. Map Data (Pastikan menggunakan properti dari commonSelect)
+      const rows = rawData.map((item, index) => [
+        index + 1,
+        item.nomorUrut || "-",
+        item.nama?.toUpperCase(),
+        item.jenisKelamin || "-",
+        item.mandiriDesaNama || item.desaNama || "-",
+        item.pendidikan || "-",
+        item.statusNikah || "-"
+      ]);
+
+      const dataAOA = [header, ...rows];
+      const worksheet = XLSX.utils.aoa_to_sheet(dataAOA);
+
+      // 3. Styling Header & Tabel (Menggunakan xlsx-js-style)
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1");
+
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_col(C) + "1"; // Baris 1 (Header)
+        if (!worksheet[address]) continue;
+
+        worksheet[address].s = {
+          fill: { fgColor: { rgb: "2F5597" } }, // Background Biru
+          font: { color: { rgb: "FFFFFF" }, bold: true }, // Teks Putih Tebal
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" }, bottom: { style: "thin" },
+            left: { style: "thin" }, right: { style: "thin" }
+          }
+        };
+      }
+
+      // 4. Tambah Border ke semua sel data
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const address = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[address]) worksheet[address] = { v: "" };
+          worksheet[address].s = {
+            alignment: { vertical: "center" },
+            border: {
+              top: { style: "thin" }, bottom: { style: "thin" },
+              left: { style: "thin" }, right: { style: "thin" }
+            }
+          };
+        }
+      }
+
+      // 5. Atur Lebar Kolom
+      worksheet['!cols'] = [
+        { wch: 5 }, { wch: 10 }, { wch: 35 }, { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 15 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Data Generus");
+
+      // 6. Generate Buffer
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+      return new NextResponse(excelBuffer, {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="Data_Katalog_${new Date().getTime()}.xlsx"`,
+        },
+      });
     }
 
-    if (search) {
-      countQuery.leftJoin(desa, eq(generus.desaId, desa.id));
-      countQuery.leftJoin(kelompok, eq(generus.kelompokId, kelompok.id));
-    }
-
-    if (mandiriOnly || status !== "all") {
-      countQuery.leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
-    }
-
-    if (mandiriOnly) {
-      countQuery.innerJoin(mandiri, eq(generus.id, mandiri.generusId));
-    }
-
+    // --- LOGIKA NORMAL (JSON) ---
     const [data, countResult] = await Promise.all([
-      dataQuery
-        .where(finalWhere)
-        .orderBy(generus.nama)
-        .limit(limit)
-        .offset(offset),
-      countQuery.where(finalWhere),
+      dataQuery.where(finalWhere).orderBy(generus.nama).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(generus).where(finalWhere)
     ]);
 
-    return NextResponse.json(
-      { data, total: Number(countResult[0]?.count || 0), page, limit },
-      { headers: { "Cache-Control": "private, s-maxage=30, stale-while-revalidate=60" } }
-    );
+    return NextResponse.json({ data, total: Number(countResult[0]?.count || 0), page, limit });
+
   } catch (error: any) {
-    console.error("Generus GET error details:", error);
-    return NextResponse.json({ error: "Gagal mengambil data dari server" }, { status: 500 });
+    console.error("Generus GET error:", error);
+    return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
   }
 }
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { 
-      nama, tempatLahir, tanggalLahir, jenisKelamin, kategoriUsia, alamat, noTelp, 
-      pendidikan, pekerjaan, statusNikah, desaId, kelompokId, 
+    const {
+      nama, tempatLahir, tanggalLahir, jenisKelamin, kategoriUsia, alamat, noTelp,
+      pendidikan, pekerjaan, statusNikah, desaId, kelompokId,
       mandiriDesaId, mandiriKelompokId,
-      hobi, makananMinumanFavorit, suku, foto 
+      hobi, makananMinumanFavorit, suku, foto
     } = body;
 
     if (!nama || !jenisKelamin || !kategoriUsia || (!desaId && !mandiriDesaId)) {
@@ -306,14 +299,14 @@ export async function POST(request: NextRequest) {
       duplicateConditions.push(eq(generus.noTelp, noTelp));
     }
 
-    const duplicate = duplicateConditions.length > 0 
+    const duplicate = duplicateConditions.length > 0
       ? await db.query.generus.findFirst({ where: or(...duplicateConditions) })
       : null;
 
     if (duplicate) {
-        return NextResponse.json({ 
-            error: `Data dengan Nama "${nama}" atau Nomor HP "${noTelp}" sudah terdaftar sebelumnya.` 
-        }, { status: 400 });
+      return NextResponse.json({
+        error: `Data dengan Nama "${nama}" atau Nomor HP "${noTelp}" sudah terdaftar sebelumnya.`
+      }, { status: 400 });
     }
 
     // Access control
@@ -362,25 +355,25 @@ export async function POST(request: NextRequest) {
     const { email: customEmail, password: customPassword } = body;
     let finalEmail = customEmail ? customEmail.toLowerCase() : `${nomorUnik.toLowerCase()}@jb2.id`;
     const finalPassword = customPassword || nomorUnik;
-    
+
     // Check email uniqueness in usersOld
     const existingEmail = await db.query.usersOld.findFirst({ where: eq(usersOld.email, finalEmail) });
     if (existingEmail) {
-        finalEmail = `${uuidv4().substring(0, 4)}_${finalEmail}`;
+      finalEmail = `${uuidv4().substring(0, 4)}_${finalEmail}`;
     }
 
     const bcrypt = await import("bcryptjs");
     const passwordHash = await bcrypt.hash(finalPassword, 10);
 
     await db.insert(usersOld).values({
-        id: uuidv4(),
-        name: nama,
-        email: finalEmail,
-        passwordHash, 
-        role: "generus",
-        generusId: id,
-        desaId: desaId ? Number(desaId) : null,
-        kelompokId: kelompokId ? Number(kelompokId) : null,
+      id: uuidv4(),
+      name: nama,
+      email: finalEmail,
+      passwordHash,
+      role: "generus",
+      generusId: id,
+      desaId: desaId ? Number(desaId) : null,
+      kelompokId: kelompokId ? Number(kelompokId) : null,
     });
 
     return NextResponse.json({ success: true, id, nomorUnik });

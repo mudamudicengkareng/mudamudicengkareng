@@ -5,6 +5,7 @@ import { mandiri, generus, desa, kelompok, mandiriDesa, mandiriKelompok, users, 
 import { eq, and, or, like, sql, desc } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
+import ExcelJS from "exceljs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Optimized Data Query - Based on MANDIRI table
     const dataQuery = db
       .select({
-        id: mandiri.id, 
+        id: mandiri.id,
         nomorUrut: mandiri.nomorUrut,
         statusMandiri: mandiri.statusMandiri,
         catatan: mandiri.catatan,
@@ -129,12 +130,12 @@ export async function POST(request: NextRequest) {
 
     // Fetch participant gender to determine numbering range
     const genData = await db.query.generus.findFirst({
-        where: eq(generus.id, generusId),
-        columns: { jenisKelamin: true, nama: true, nomorUnik: true, desaId: true, kelompokId: true, mandiriDesaId: true, mandiriKelompokId: true }
+      where: eq(generus.id, generusId),
+      columns: { jenisKelamin: true, nama: true, nomorUnik: true, desaId: true, kelompokId: true, mandiriDesaId: true, mandiriKelompokId: true }
     });
-    
+
     if (!genData) {
-        return NextResponse.json({ error: "Data Generus tidak ditemukan" }, { status: 404 });
+      return NextResponse.json({ error: "Data Generus tidak ditemukan" }, { status: 404 });
     }
 
     const { jenisKelamin } = genData;
@@ -143,15 +144,15 @@ export async function POST(request: NextRequest) {
     // Laki-laki: 1-199, Perempuan: 200+
     let nextNr;
     if (jenisKelamin === "L") {
-        const lastRes = await db.select({ maxNr: sql<number>`max(${mandiri.nomorUrut})` })
-            .from(mandiri)
-            .where(sql`${mandiri.nomorUrut} < 200`);
-        nextNr = (lastRes[0]?.maxNr || 0) + 1;
+      const lastRes = await db.select({ maxNr: sql<number>`max(${mandiri.nomorUrut})` })
+        .from(mandiri)
+        .where(sql`${mandiri.nomorUrut} < 200`);
+      nextNr = (lastRes[0]?.maxNr || 0) + 1;
     } else {
-        const lastRes = await db.select({ maxNr: sql<number>`max(${mandiri.nomorUrut})` })
-            .from(mandiri)
-            .where(sql`${mandiri.nomorUrut} >= 200`);
-        nextNr = Math.max(lastRes[0]?.maxNr || 199, 199) + 1;
+      const lastRes = await db.select({ maxNr: sql<number>`max(${mandiri.nomorUrut})` })
+        .from(mandiri)
+        .where(sql`${mandiri.nomorUrut} >= 200`);
+      nextNr = Math.max(lastRes[0]?.maxNr || 199, 199) + 1;
     }
 
     const id = uuidv4();
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
           mandiriKelompokId: genData.mandiriKelompokId,
         });
       } else if (existingUser.role === "generus" || existingUser.role === "pending") {
-          await db.update(users).set({ role: "peserta" }).where(eq(users.id, existingUser.id));
+        await db.update(users).set({ role: "peserta" }).where(eq(users.id, existingUser.id));
       }
     }
 

@@ -916,149 +916,151 @@ export default function PublicKatalogPage() {
         {loading && data.length === 0 ? (
           [...Array(6)].map((_, i) => <div key={i} className="skeleton-card" />)
         ) : (
-          data.map((item) => (
-            <div key={item.id} className="participant-card">
-              <div className="card-image-wrapper">
-                <img
-                  src={item.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.nama)}&background=random`}
-                  alt={item.nama}
-                  className="card-image"
-                />
-                <div className="floating-badge id-badge">#{item.nomorUrut || "-"}</div>
-                {item.selectedCount >= 5 && (
-                  <div className="floating-badge full-badge">PENUH (5/5)</div>
-                )}
-                <div className={`floating-badge label-badge ${item.panitiaStatus ? "status-panitia" : ""}`}>
-                  {item.panitiaStatus ? "PANITIA" : "PESERTA"}
-                </div>
-              </div>
-
-              <div className="card-content">
-                <h2 className="card-name">{item.nama}</h2>
-                <div className="card-location">
-                  <MapPin size={14} />
-                  <span>{item.mandiriDesaKota || "-"} • {item.mandiriDesaNama || item.desaNama || "-"}</span>
+          data
+            .filter((item) => item.panitiaStatus || item.isAttended) // TAMBAHKAN BARIS INI
+            .map((item) => (
+              <div key={item.id} className="participant-card">
+                <div className="card-image-wrapper">
+                  <img
+                    src={item.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.nama)}&background=random`}
+                    alt={item.nama}
+                    className="card-image"
+                  />
+                  <div className="floating-badge id-badge">#{item.nomorUrut || "-"}</div>
+                  {item.selectedCount >= 5 && (
+                    <div className="floating-badge full-badge">PENUH (5/5)</div>
+                  )}
+                  <div className={`floating-badge label-badge ${item.panitiaStatus ? "status-panitia" : ""}`}>
+                    {item.panitiaStatus ? "PANITIA" : "PESERTA"}
+                  </div>
                 </div>
 
-                <div className="card-stats-grid">
-                  <div className="stat-pill">
-                    <Calendar size={14} />
-                    <span>{item.tanggalLahir ? `${new Date().getFullYear() - new Date(item.tanggalLahir).getFullYear()} Tahun` : "-"}</span>
+                <div className="card-content">
+                  <h2 className="card-name">{item.nama}</h2>
+                  <div className="card-location">
+                    <MapPin size={14} />
+                    <span>{item.mandiriDesaKota || "-"} • {item.mandiriDesaNama || item.desaNama || "-"}</span>
                   </div>
-                  <div className="stat-pill">
-                    <GraduationCap size={14} />
-                    <span>{item.pendidikan || "-"}</span>
+
+                  <div className="card-stats-grid">
+                    <div className="stat-pill">
+                      <Calendar size={14} />
+                      <span>{item.tanggalLahir ? `${new Date().getFullYear() - new Date(item.tanggalLahir).getFullYear()} Tahun` : "-"}</span>
+                    </div>
+                    <div className="stat-pill">
+                      <GraduationCap size={14} />
+                      <span>{item.pendidikan || "-"}</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Heart size={14} />
+                      <span>{item.statusNikah || "Belum Menikah"}</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Briefcase size={14} />
+                      <span>{item.pekerjaan || "Swasta"}</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Globe size={14} />
+                      <span>{item.suku || "-"}</span>
+                    </div>
+                    <div className="stat-pill">
+                      <Instagram size={14} />
+                      {item.instagram ? (
+                        <a
+                          href={`https://instagram.com/${item.instagram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="card-instagram-link"
+                        >
+                          @{item.instagram.replace('@', '')}
+                        </a>
+                      ) : (
+                        <span>-</span>
+                      )}
+                    </div>
+                    <div className="stat-pill selection-count">
+                      <UserCheck size={14} />
+                      <span>Dipilih: {item.selectedCount || 0}/5</span>
+                    </div>
                   </div>
-                  <div className="stat-pill">
-                    <Heart size={14} />
-                    <span>{item.statusNikah || "Belum Menikah"}</span>
+
+                  <div className="card-passions-mini">
+                    <div className="pass-pill"><Music size={12} /> <span>Hobi: {item.hobi || "-"}</span></div>
+                    <div className="pass-pill"><Utensils size={12} /> <span>Makan/Minuman: {item.makananMinumanFavorit || "-"}</span></div>
                   </div>
-                  <div className="stat-pill">
-                    <Briefcase size={14} />
-                    <span>{item.pekerjaan || "Swasta"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <Globe size={14} />
-                    <span>{item.suku || "-"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <Instagram size={14} />
-                    {item.instagram ? (
-                      <a
-                        href={`https://instagram.com/${item.instagram.replace('@', '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="card-instagram-link"
+
+                  <div className="card-actions">
+                    <button
+                      className="btn-secondary"
+                      onClick={() => openDetail(item)}
+                    >
+                      Detail Profil
+                    </button>
+                    {item.nomorUrut !== currentUser?.nomorUrut && (
+                      <button
+                        className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
+                        onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && item.selectedCount < 5 && handleConfirmSelection(item.id, item.nama)}
+                        disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id))}
                       >
-                        @{item.instagram.replace('@', '')}
-                      </a>
-                    ) : (
-                      <span>-</span>
+                        {selectedIds.includes(item.id) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
+                        <span>{selectedIds.includes(item.id) ? "Terpilih" : (item.selectedCount >= 5 ? "Penuh" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih"))}</span>
+                      </button>
                     )}
                   </div>
-                  <div className="stat-pill selection-count">
-                    <UserCheck size={14} />
-                    <span>Dipilih: {item.selectedCount || 0}/5</span>
-                  </div>
-                </div>
 
-                <div className="card-passions-mini">
-                  <div className="pass-pill"><Music size={12} /> <span>Hobi: {item.hobi || "-"}</span></div>
-                  <div className="pass-pill"><Utensils size={12} /> <span>Makan/Minuman: {item.makananMinumanFavorit || "-"}</span></div>
-                </div>
-
-                <div className="card-actions">
-                  <button
-                    className="btn-secondary"
-                    onClick={() => openDetail(item)}
-                  >
-                    Detail Profil
-                  </button>
-                  {item.nomorUrut !== currentUser?.nomorUrut && (
-                    <button
-                      className={`btn-primary ${selectedIds.includes(item.id) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id)) ? "disabled" : ""}`}
-                      onClick={() => !selectedIds.includes(item.id) && selectedIds.length < 3 && item.selectedCount < 5 && handleConfirmSelection(item.id, item.nama)}
-                      disabled={selectedIds.includes(item.id) || (selectedIds.length >= 3 && !selectedIds.includes(item.id)) || (item.selectedCount >= 5 && !selectedIds.includes(item.id))}
-                    >
-                      {selectedIds.includes(item.id) ? <CheckCircle2 size={16} /> : <Heart size={16} />}
-                      <span>{selectedIds.includes(item.id) ? "Terpilih" : (item.selectedCount >= 5 ? "Penuh" : (selectedIds.length >= 3 ? "Batas Tercapai" : "Pilih"))}</span>
-                    </button>
+                  {item.id !== currentUser?.id && (
+                    <div className="commentary-box">
+                      {sentComments.some(sc => sc.penerimaId === item.id) ? (
+                        <div className="comment-sent-indicator">
+                          <MessageSquare size={14} />
+                          <span>Komentar Anda: {sentComments.find(sc => sc.penerimaId === item.id)?.komentar}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="commentary-header">
+                            <div className="anon-toggle">
+                              <input
+                                type="checkbox"
+                                id={`anon-${item.id}`}
+                                checked={komentarAnon}
+                                onChange={(e) => setKomentarAnon(e.target.checked)}
+                                disabled={sentComments.length > 0}
+                              />
+                              <label htmlFor={`anon-${item.id}`}>Anonim</label>
+                            </div>
+                            {!komentarAnon && (
+                              <input
+                                type="text"
+                                className="comment-name-input"
+                                placeholder="Nama Anda..."
+                                value={komentarNama}
+                                onChange={(e) => setKomentarNama(e.target.value)}
+                                disabled={!!currentUser || sentComments.length > 0}
+                              />
+                            )}
+                          </div>
+                          <div className="comment-tags-label">
+                            {sentComments.length > 0 ? "Batas komentar tercapai" : "Berikan Komentar Singkat:"}
+                          </div>
+                          <div className="comment-buttons">
+                            {["Humble", "Baik", "Pendiam", "Penyabar", "Friendly"].map(tag => (
+                              <button
+                                key={tag}
+                                className={`btn-tag ${submittingKomentar === item.id ? "loading" : ""}`}
+                                onClick={() => handleSendKomentar(item.id, item.nama, tag)}
+                                disabled={!!submittingKomentar || sentComments.length > 0}
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                {item.id !== currentUser?.id && (
-                  <div className="commentary-box">
-                    {sentComments.some(sc => sc.penerimaId === item.id) ? (
-                      <div className="comment-sent-indicator">
-                        <MessageSquare size={14} />
-                        <span>Komentar Anda: {sentComments.find(sc => sc.penerimaId === item.id)?.komentar}</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="commentary-header">
-                          <div className="anon-toggle">
-                            <input
-                              type="checkbox"
-                              id={`anon-${item.id}`}
-                              checked={komentarAnon}
-                              onChange={(e) => setKomentarAnon(e.target.checked)}
-                              disabled={sentComments.length > 0}
-                            />
-                            <label htmlFor={`anon-${item.id}`}>Anonim</label>
-                          </div>
-                          {!komentarAnon && (
-                            <input
-                              type="text"
-                              className="comment-name-input"
-                              placeholder="Nama Anda..."
-                              value={komentarNama}
-                              onChange={(e) => setKomentarNama(e.target.value)}
-                              disabled={!!currentUser || sentComments.length > 0}
-                            />
-                          )}
-                        </div>
-                        <div className="comment-tags-label">
-                          {sentComments.length > 0 ? "Batas komentar tercapai" : "Berikan Komentar Singkat:"}
-                        </div>
-                        <div className="comment-buttons">
-                          {["Humble", "Baik", "Pendiam", "Penyabar", "Friendly"].map(tag => (
-                            <button
-                              key={tag}
-                              className={`btn-tag ${submittingKomentar === item.id ? "loading" : ""}`}
-                              onClick={() => handleSendKomentar(item.id, item.nama, tag)}
-                              disabled={!!submittingKomentar || sentComments.length > 0}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
-            </div>
-          ))
+            ))
         )}
       </main>
 
