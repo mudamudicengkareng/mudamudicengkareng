@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { settings, generus, mandiri, mandiriDesa, mandiriPemilihan } from "@/lib/schema";
-import { eq, and, or, like, sql } from "drizzle-orm";
+import { settings, generus, mandiri, mandiriDesa, mandiriPemilihan, mandiriKegiatan, mandiriAbsensi } from "@/lib/schema";
+import { eq, and, or, like, sql, desc } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -38,6 +38,12 @@ export async function GET(request: NextRequest) {
         if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
+      // Get latest activity to filter by attendance
+      const latestActivity = await db.select().from(mandiriKegiatan).orderBy(desc(mandiriKegiatan.tanggal)).limit(1);
+      const kegiatanId = latestActivity[0]?.id;
+
+      if (!kegiatanId) return NextResponse.json([]);
+
       const conditions: any[] = [];
 
       if (search) {
@@ -64,6 +70,9 @@ export async function GET(request: NextRequest) {
         conditions.push(eq(generus.jenisKelamin, jenisKelamin as "L" | "P"));
       }
 
+      // Only show attended
+      conditions.push(eq(mandiriAbsensi.kegiatanId, kegiatanId));
+
       const finalWhere = conditions.length > 0 ? and(...conditions) : undefined;
 
       const results = await db.select({
@@ -78,6 +87,7 @@ export async function GET(request: NextRequest) {
       })
         .from(generus)
         .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
+        .innerJoin(mandiriAbsensi, eq(generus.id, mandiriAbsensi.generusId))
         .leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
         .where(finalWhere)
         .orderBy(mandiri.nomorUrut)
@@ -165,7 +175,23 @@ export async function POST(request: NextRequest) {
         status: "Menunggu"
       });
 
-      return NextResponse.json({ success: true, id });
+      // Optimization: Return updated selections
+      const updatedSelections = await db.select({
+        id: mandiriPemilihan.id,
+        status: mandiriPemilihan.status,
+        penerimaId: mandiriPemilihan.penerimaId,
+        createdAt: mandiriPemilihan.createdAt,
+        penerimaNama: generus.nama,
+        penerimaNo: generus.nomorUnik,
+        penerimaNoUrut: mandiri.nomorUrut
+      })
+      .from(mandiriPemilihan)
+      .innerJoin(generus, eq(mandiriPemilihan.penerimaId, generus.id))
+      .leftJoin(mandiri, eq(generus.id, mandiri.generusId))
+      .where(eq(mandiriPemilihan.pengirimId, pengirimId))
+      .orderBy(desc(mandiriPemilihan.createdAt));
+
+      return NextResponse.json({ success: true, id, selections: updatedSelections });
     }
 
     return NextResponse.json({ error: "Action tidak valid" }, { status: 400 });

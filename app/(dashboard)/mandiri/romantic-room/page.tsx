@@ -36,10 +36,7 @@ function RoomTimer({ startTime }: { startTime: string }) {
 
             if (remaining <= 0) {
                 setIsOver(true);
-                const overTime = Math.abs(remaining);
-                const mins = Math.floor(overTime / 60000);
-                const secs = Math.floor((overTime % 60000) / 1000);
-                setTimeLeft(`Lewat: ${mins}:${secs.toString().padStart(2, '0')}`);
+                setTimeLeft("0");
             } else {
                 setIsOver(false);
                 const mins = Math.floor(remaining / 60000);
@@ -830,10 +827,12 @@ export default function RomanticRoomPage() {
                         border: 1px solid #e2e8f0;
                     }
                     .room-timer-badge.over {
-                        background: #fef2f2;
-                        color: #ef4444;
-                        border-color: #fecdd3;
-                        animation: pulse 1s infinite;
+                        background: #dc2626;
+                        color: white !important;
+                        border-color: #b91c1c;
+                        animation: pulse 0.6s infinite;
+                        font-weight: 950;
+                        box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
                     }
                     @keyframes pulse {
                         0% { opacity: 1; }

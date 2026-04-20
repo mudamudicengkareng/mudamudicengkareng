@@ -8,9 +8,10 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet
+  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText
 } from "lucide-react";
 import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { utils, writeFile } from "xlsx";
 
@@ -105,11 +106,11 @@ export default function AdminKatalogPage() {
         // Fetch site logo
         if (typeof window !== 'undefined') {
           const handleLogoUpdate = () => {
-             setSiteLogo((window as any).__SITE_LOGO__ || null);
+            setSiteLogo((window as any).__SITE_LOGO__ || null);
           };
           handleLogoUpdate();
           window.addEventListener('site-logo-updated', handleLogoUpdate);
-          
+
           if (!(window as any).__SITE_LOGO__) {
             const settingsRes = await fetch("/api/settings");
             if (settingsRes.ok) {
@@ -330,6 +331,124 @@ export default function AdminKatalogPage() {
     }
   };
 
+  const handleExportKatalogPDF = async () => {
+    Swal.fire({
+      title: "Menyiapkan PDF Katalog...",
+      text: "Sedang mengambil data dan menyusun laporan. Harap tunggu sebentar.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const params = new URLSearchParams({
+        search,
+        all: "true",
+        mandiriOnly: "true",
+        jenisKelamin: gender,
+        status: status,
+        pendidikan: pendidikan,
+        mandiriDesaId: selectedRegion,
+        desaId: selectedDesa
+      });
+      const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      const allParticipants: GenerusItem[] = json.data || [];
+
+      if (allParticipants.length === 0) {
+        Swal.fire("Info", "Tidak ada data untuk diekspor", "info");
+        return;
+      }
+
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4"
+      });
+
+      // Simple Branding / Header
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(30, 58, 138); // Primary blue
+      doc.rect(0, 0, pageWidth, 40, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("KATALOG LENGKAP PESERTA", 15, 20);
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(latestActivity?.judul || "Daftar Peserta Aktif", 15, 28);
+      doc.text(`Total: ${allParticipants.length} Orang`, 15, 34);
+
+      doc.setFontSize(9);
+      doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth - 15, 34, { align: "right" });
+
+      // Table Data
+      const tableColumn = ["No", "Nama Lengkap", "L/P", "Usia", "Status", "Wilayah / Desa", "Kontak / Sosial Media", "Pendidikan & Pekerjaan"];
+      const tableRows = allParticipants.map((item, index) => [
+        index + 1,
+        item.nama.toUpperCase(),
+        item.jenisKelamin || "-",
+        calculateAge(item.tanggalLahir ?? undefined),
+        (item.panitiaStatus || item.role === 'admin') ? "PANITIA" : "PESERTA",
+        `${item.mandiriDesaKota || "-"}\n${item.mandiriDesaNama || item.desaNama || "-"}`,
+        `${item.noTelp || "-"}\n${item.instagram ? '@' + item.instagram.replace('@', '') : "-"}`,
+        `${item.pendidikan || "-"}\n${item.pekerjaan || "-"}`
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 45,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [30, 58, 138],
+          textColor: 255,
+          fontSize: 9,
+          halign: 'center',
+          valign: 'middle',
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [30, 41, 59],
+          valign: 'middle'
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          1: { fontStyle: 'bold', cellWidth: 50 },
+          2: { halign: 'center', cellWidth: 10 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          5: { cellWidth: 45 },
+          6: { cellWidth: 45 },
+          7: { cellWidth: 45 },
+        },
+        margin: { left: 15, right: 15, bottom: 20 },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Halaman ${data.pageNumber} dari ${pageCount}`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: "center" });
+          doc.text("Sistem Informasi Katalog Peserta - jb2.id", 15, doc.internal.pageSize.height - 10);
+        }
+      });
+
+      doc.save(`KATALOG_PESERTA_${new Date().getTime()}.pdf`);
+      Swal.fire("Berhasil", "Laporan PDF telah berhasil diunduh.", "success");
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Gagal", "Terjadi kesalahan saat membuat PDF", "error");
+    }
+  };
+
   const handleExportExcel = async () => {
     Swal.fire({
       title: "Menyiapkan Excel...",
@@ -363,7 +482,9 @@ export default function AdminKatalogPage() {
       const excelData = allParticipants.map((item) => ({
         "Nama Lengkap": item.nama,
         "Nomor Peserta": item.nomorUrut || "-",
-        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta"
+        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta",
+        "Kota/Kabupaten": item.mandiriDesaKota || "-",
+        "Desa": item.mandiriDesaNama || item.desaNama || "-"
       }));
 
       const wb = utils.book_new();
@@ -374,12 +495,14 @@ export default function AdminKatalogPage() {
         { wch: 30 }, // Nama Lengkap
         { wch: 15 }, // Nomor Peserta
         { wch: 15 }, // Status
+        { wch: 20 }, // Kota/Kabupaten
+        { wch: 20 }, // Desa
       ];
       ws['!cols'] = wscols;
 
       utils.book_append_sheet(wb, ws, "Daftar Katalog");
       writeFile(wb, `KATALOG_PESERTA_${new Date().getTime()}.xlsx`);
-      
+
       Swal.fire("Berhasil", "Data telah diekspor ke Excel", "success");
     } catch (e) {
       console.error(e);
@@ -441,6 +564,10 @@ export default function AdminKatalogPage() {
             <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #059669, #047857)' }} onClick={handleExportExcel}>
               <FileSpreadsheet size={16} />
               <span>Export Excel</span>
+            </button>
+            <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)' }} onClick={handleExportKatalogPDF}>
+              <FileText size={16} />
+              <span>Export PDF</span>
             </button>
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />
@@ -538,9 +665,9 @@ export default function AdminKatalogPage() {
                     {item.noTelp && (
                       <div className="contact-item">
                         <Phone size={12} className="text-wa" />
-                        <a 
-                          href={`https://wa.me/${item.noTelp.replace(/\D/g, '').replace(/^0/, '62')}`} 
-                          target="_blank" 
+                        <a
+                          href={`https://wa.me/${item.noTelp.replace(/\D/g, '').replace(/^0/, '62')}`}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="wa-link-text"
                           onClick={(e) => e.stopPropagation()}
@@ -556,10 +683,10 @@ export default function AdminKatalogPage() {
                     {item.instagram && (
                       <div className="contact-item">
                         <Instagram size={12} className="text-ig" />
-                        <a 
-                          href={`https://instagram.com/${item.instagram.replace('@', '')}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={`https://instagram.com/${item.instagram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="instagram-link-contact"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -595,7 +722,7 @@ export default function AdminKatalogPage() {
             <div className="qr-access-container" style={{ textAlign: 'center', padding: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '8px', color: '#1e3a8a' }}>Barcode Akses Katalog</h2>
               <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '14px' }}>Scan barcode ini untuk masuk ke halaman Katalog Peserta secara mandiri.</p>
-              
+
               <div style={{ background: 'white', padding: '20px', borderRadius: '32px', display: 'inline-flex', boxShadow: '0 20px 40px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '24px' }}>
                 <canvas ref={accessQRCanvasRef} style={{ width: '280px', height: '280px' }} />
               </div>
@@ -605,8 +732,8 @@ export default function AdminKatalogPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button 
-                  className="btn-print-card" 
+                <button
+                  className="btn-print-card"
                   style={{ background: '#3b82f6' }}
                   onClick={() => {
                     const canvas = accessQRCanvasRef.current;
@@ -692,8 +819,8 @@ export default function AdminKatalogPage() {
                       </div>
                     )}
                   </div>
-                  
-                  
+
+
                   <div className="id-qr-box" style={{ padding: "10px", borderRadius: "14px", marginTop: "15px", background: "white", width: "140px", margin: "15px auto" }}>
                     <canvas ref={cardCanvasRef} style={{ width: '120px', height: '120px' }} />
                     <div className="id-qr-label" style={{ fontSize: "9px", marginTop: "6px", fontWeight: "900", color: "#000000", textTransform: "uppercase" }}>Verified Digital ID</div>
@@ -797,8 +924,8 @@ export default function AdminKatalogPage() {
                     </div>
                   )}
                 </div>
-                
-                
+
+
                 <div className="id-qr-box" style={{ padding: "10px", borderRadius: "14px", marginTop: "15px", background: "white", width: "140px", margin: "15px auto" }}>
                   <canvas ref={exportQRCanvasRef} style={{ width: '120px', height: '120px' }} />
                   <div className="id-qr-label" style={{ fontSize: "9px", marginTop: "6px", fontWeight: "900", color: "#000000", textTransform: "uppercase" }}>Verified Digital ID</div>

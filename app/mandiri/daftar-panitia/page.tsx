@@ -105,6 +105,13 @@ export default function PanitiaDaftarPage() {
         return;
       }
 
+      const cleanNoTelp = form.noTelp.replace(/\D/g, "");
+      if (cleanNoTelp.length < 11) {
+        Swal.fire({ icon: "warning", title: "Nomor Telepon Tidak Valid", text: "Nomor telepon/WhatsApp minimal harus 11 atau 12 angka." });
+        setLoading(false);
+        return;
+      }
+
       if (!form.foto) {
         Swal.fire({ icon: "warning", title: "Foto Belum Ada", text: "Mohon ambil foto atau unggah foto Anda terlebih dahulu." });
         setLoading(false);
@@ -156,12 +163,13 @@ export default function PanitiaDaftarPage() {
           <div style={{ fontSize: "60px", marginBottom: "20px" }}>👋</div>
           <h2 style={{ marginBottom: "10px" }}>Pendaftaran Sukses!</h2>
           <p style={{ color: "var(--text-muted)", marginBottom: "24px" }}>
-            Pendaftaran Berhasil! Silakan tunjukkan <b>Barcode</b> atau <b>Nomor Panitia</b> ini di meja panitia (Admin Romantic Room) untuk melakukan konfirmasi kehadiran (absensi).
+            Pendaftaran Berhasil! Silakan tunjukkan <b>Barcode</b> atau <b>Nomor Unik</b> ini di meja panitia (Admin Romantic Room) untuk melakukan konfirmasi kehadiran (absensi).
           </p>
 
           <div style={{ background: "white", padding: "30px", borderRadius: "16px", border: "2px dashed #3b82f6", marginBottom: "24px", position: "relative" }}>
             <p style={{ fontSize: "11px", color: "#64748b", margin: "0 0 8px 0", textTransform: "uppercase", fontWeight: "700", letterSpacing: "1px" }}>Nomor Panitia</p>
-            <h3 style={{ fontSize: "42px", color: "var(--primary)", letterSpacing: "2px", margin: "0 0 20px 0", fontWeight: "900" }}>#{result?.nomorUrut}</h3>
+            <h3 style={{ fontSize: "42px", color: "var(--primary)", letterSpacing: "2px", margin: "0 0 5px 0", fontWeight: "900" }}>#{result?.nomorUrut}</h3>
+            <p style={{ fontSize: "14px", color: "#3b82f6", fontWeight: "800", marginBottom: "20px", background: "#eff6ff", display: "inline-block", padding: "4px 12px", borderRadius: "20px" }}>ID Login: {result?.nomorUnik}</p>
 
             <div style={{
               background: "#f8fafc",
@@ -200,7 +208,9 @@ export default function PanitiaDaftarPage() {
               </button>
             </div>
           </div>
-          
+          <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "24px", lineHeight: "1.6", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+            Setelah selesai melakukan absensi di meja admin, silakan klik tombol di bawah ini lalu login menggunakan <b>Nomor Unik (ID Login)</b> untuk mengakses katalog.
+          </p>
           <Link href="/mandiri/katalog" className="btn btn-primary btn-full" style={{ marginTop: "24px", padding: "15px", fontSize: "16px", fontWeight: "700" }}>
             Buka Katalog Peserta
           </Link>
@@ -216,7 +226,7 @@ export default function PanitiaDaftarPage() {
           <div style={{ fontSize: "60px", marginBottom: "20px" }}>⌛</div>
           <h2 style={{ marginBottom: "10px" }}>Pendaftaran Ditutup</h2>
           <p style={{ color: "var(--text-muted)", marginBottom: "24px" }}>
-            Pendaftaran Panitia & Pengurus saat ini sedang ditutup.
+            Pendaftaran Panitia saat ini sedang ditutup.
           </p>
         </div>
       </div>
@@ -299,6 +309,9 @@ export default function PanitiaDaftarPage() {
               <div className="form-group">
                 <label className="form-label">No. Telepon / WhatsApp <span className="required">*</span></label>
                 <input name="noTelp" className="form-control" value={form.noTelp} onChange={handleChange} required placeholder="08xx-xxxx-xxxx" />
+                <p style={{ fontSize: "10.5px", color: "var(--text-muted)", marginTop: "4px", lineHeight: "1.3" }}>
+                  Minimal 11 atau 12 angka.
+                </p>
               </div>
               <div className="form-group">
                 <label className="form-label">Pendidikan Terakhir <span className="required">*</span></label>

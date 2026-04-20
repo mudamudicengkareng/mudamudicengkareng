@@ -140,7 +140,23 @@ export async function POST(request: NextRequest) {
             status: "Menunggu"
         });
 
-        return NextResponse.json({ success: true, id });
+        // Optimization: Return the updated selections list directly
+        const updatedSelections = await db.select({
+            id: mandiriPemilihan.id,
+            status: mandiriPemilihan.status,
+            penerimaId: mandiriPemilihan.penerimaId,
+            createdAt: mandiriPemilihan.createdAt,
+            penerimaNama: generus.nama,
+            penerimaNo: generus.nomorUnik,
+            penerimaNoUrut: mandiri.nomorUrut
+        })
+        .from(mandiriPemilihan)
+        .innerJoin(generus, eq(mandiriPemilihan.penerimaId, generus.id))
+        .leftJoin(mandiri, eq(generus.id, mandiri.generusId))
+        .where(eq(mandiriPemilihan.pengirimId, pengirimId))
+        .orderBy(desc(mandiriPemilihan.createdAt));
+
+        return NextResponse.json({ success: true, id, selections: updatedSelections });
     } catch (error) {
         console.error("POST selection error:", error);
         return NextResponse.json({ error: "Gagal memproses pilihan" }, { status: 500 });

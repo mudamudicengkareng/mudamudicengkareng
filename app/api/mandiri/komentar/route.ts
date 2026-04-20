@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mandiriKomentar } from "@/lib/schema";
+import { mandiriKomentar, generus, mandiri } from "@/lib/schema";
 import { v4 as uuidv4 } from "uuid";
 
 import { eq, desc, and } from "drizzle-orm";
@@ -13,12 +13,22 @@ export async function GET(request: NextRequest) {
         const pengirimId = searchParams.get("pengirimId");
 
         if (pengirimId) {
-            // Fetch comments sent by this user
-            const data = await db.query.mandiriKomentar.findMany({
-                where: eq(mandiriKomentar.pengirimId, pengirimId),
-                orderBy: [desc(mandiriKomentar.createdAt)],
-                limit: 200
-            });
+            // Fetch comments sent by this user with recipient details
+            const data = await db.select({
+                id: mandiriKomentar.id,
+                komentar: mandiriKomentar.komentar,
+                createdAt: mandiriKomentar.createdAt,
+                penerimaId: mandiriKomentar.penerimaId,
+                penerimaNama: generus.nama,
+                penerimaNoUrut: mandiri.nomorUrut
+            })
+            .from(mandiriKomentar)
+            .innerJoin(generus, eq(mandiriKomentar.penerimaId, generus.id))
+            .leftJoin(mandiri, eq(generus.id, mandiri.generusId))
+            .where(eq(mandiriKomentar.pengirimId, pengirimId))
+            .orderBy(desc(mandiriKomentar.createdAt))
+            .limit(200);
+
             return NextResponse.json(data);
         }
 
@@ -26,11 +36,22 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "penerimaId or pengirimId required" }, { status: 400 });
         }
 
-        const data = await db.query.mandiriKomentar.findMany({
-            where: eq(mandiriKomentar.penerimaId, penerimaId),
-            orderBy: [desc(mandiriKomentar.createdAt)],
-            limit: 50
-        });
+        const data = await db.select({
+            id: mandiriKomentar.id,
+            komentar: mandiriKomentar.komentar,
+            createdAt: mandiriKomentar.createdAt,
+            pengirimId: mandiriKomentar.pengirimId,
+            pengirimNama: mandiriKomentar.pengirimNama,
+            isAnonim: mandiriKomentar.isAnonim,
+            realPengirimNama: generus.nama,
+            realPengirimNoUrut: mandiri.nomorUrut
+        })
+        .from(mandiriKomentar)
+        .leftJoin(generus, eq(mandiriKomentar.pengirimId, generus.id))
+        .leftJoin(mandiri, eq(generus.id, mandiri.generusId))
+        .where(eq(mandiriKomentar.penerimaId, penerimaId))
+        .orderBy(desc(mandiriKomentar.createdAt))
+        .limit(50);
 
         return NextResponse.json(data);
     } catch (error) {
@@ -48,14 +69,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Data tidak lengkap" }, { status: 400 });
         }
 
-        // Enforce global one comment limit in catalog per sender
+        // Enforce one comment per recipient per sender
         if (pengirimId) {
-            const totalSent = await db.query.mandiriKomentar.findFirst({
-                where: eq(mandiriKomentar.pengirimId, pengirimId)
+            const alreadyCommentedToRecipient = await db.query.mandiriKomentar.findFirst({
+                where: and(
+                    eq(mandiriKomentar.pengirimId, pengirimId),
+                    eq(mandiriKomentar.penerimaId, penerimaId)
+                )
             });
 
-            if (totalSent) {
-                return NextResponse.json({ error: "Anda hanya diperbolehkan mengirimkan satu komentar di katalog." }, { status: 400 });
+            if (alreadyCommentedToRecipient) {
+                return NextResponse.json({ error: "Anda sudah mengirimkan komentar kepada peserta ini." }, { status: 400 });
             }
         }
 
