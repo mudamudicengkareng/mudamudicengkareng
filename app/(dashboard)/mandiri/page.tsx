@@ -11,6 +11,7 @@ interface MandiriItem {
    statusMandiri: string;
    catatan: string;
    generusId: string;
+   nomorUnik: string;
    nama: string;
    jenisKelamin: string;
    kategoriUsia: string;
@@ -283,6 +284,7 @@ export default function MandiriPage() {
                            <thead>
                               <tr>
                                  <th>No. Peserta</th>
+                                 <th>Kode Unik</th>
                                  <th>Foto</th>
                                  <th>Nama</th>
                                  <th>JK</th>
@@ -298,6 +300,9 @@ export default function MandiriPage() {
                                  <tr key={item.id}>
                                     <td>
                                        <span style={{ fontWeight: "700", color: "var(--primary)" }}>{item.nomorUrut}</span>
+                                    </td>
+                                    <td>
+                                       <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700" }}>{item.nomorUnik}</code>
                                     </td>
                                     <td>
                                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f1f5f9", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>

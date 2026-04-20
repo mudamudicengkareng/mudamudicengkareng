@@ -105,11 +105,11 @@ export default function AdminKatalogPage() {
         // Fetch site logo
         if (typeof window !== 'undefined') {
           const handleLogoUpdate = () => {
-             setSiteLogo((window as any).__SITE_LOGO__ || null);
+            setSiteLogo((window as any).__SITE_LOGO__ || null);
           };
           handleLogoUpdate();
           window.addEventListener('site-logo-updated', handleLogoUpdate);
-          
+
           if (!(window as any).__SITE_LOGO__) {
             const settingsRes = await fetch("/api/settings");
             if (settingsRes.ok) {
@@ -333,7 +333,7 @@ export default function AdminKatalogPage() {
   const handleExportExcel = async () => {
     Swal.fire({
       title: "Menyiapkan Excel...",
-      text: "Sedang mengambil data. Harap tunggu sebentar.",
+      text: "Server sedang memproses file Excel dengan tampilan HD.",
       allowOutsideClick: false,
       didOpen: () => {
         Swal.showLoading();
@@ -342,6 +342,7 @@ export default function AdminKatalogPage() {
 
     try {
       const params = new URLSearchParams({
+        download: "true", // Beri tahu server kita mau file Excel
         search,
         all: "true",
         mandiriOnly: "true",
@@ -351,36 +352,14 @@ export default function AdminKatalogPage() {
         mandiriDesaId: selectedRegion,
         desaId: selectedDesa
       });
-      const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
-      const json = await res.json();
-      const allParticipants: GenerusItem[] = json.data || [];
 
-      if (allParticipants.length === 0) {
-        Swal.fire("Info", "Tidak ada data untuk diekspor", "info");
-        return;
-      }
+      // Cukup gunakan window.location.href untuk mendownload file dari server
+      window.location.href = `/api/generus?${params.toString()}`;
 
-      const excelData = allParticipants.map((item) => ({
-        "Nama Lengkap": item.nama,
-        "Nomor Peserta": item.nomorUrut || "-",
-        "Status": (item.panitiaStatus || item.role === 'admin') ? "Panitia" : "Peserta"
-      }));
-
-      const wb = utils.book_new();
-      const ws = utils.json_to_sheet(excelData);
-
-      // Set column widths
-      const wscols = [
-        { wch: 30 }, // Nama Lengkap
-        { wch: 15 }, // Nomor Peserta
-        { wch: 15 }, // Status
-      ];
-      ws['!cols'] = wscols;
-
-      utils.book_append_sheet(wb, ws, "Daftar Katalog");
-      writeFile(wb, `KATALOG_PESERTA_${new Date().getTime()}.xlsx`);
-      
-      Swal.fire("Berhasil", "Data telah diekspor ke Excel", "success");
+      // Tutup swal setelah jeda singkat
+      setTimeout(() => {
+        Swal.close();
+      }, 2000);
     } catch (e) {
       console.error(e);
       Swal.fire("Gagal", "Gagal mengekspor Excel", "error");
@@ -538,9 +517,9 @@ export default function AdminKatalogPage() {
                     {item.noTelp && (
                       <div className="contact-item">
                         <Phone size={12} className="text-wa" />
-                        <a 
-                          href={`https://wa.me/${item.noTelp.replace(/\D/g, '').replace(/^0/, '62')}`} 
-                          target="_blank" 
+                        <a
+                          href={`https://wa.me/${item.noTelp.replace(/\D/g, '').replace(/^0/, '62')}`}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="wa-link-text"
                           onClick={(e) => e.stopPropagation()}
@@ -556,10 +535,10 @@ export default function AdminKatalogPage() {
                     {item.instagram && (
                       <div className="contact-item">
                         <Instagram size={12} className="text-ig" />
-                        <a 
-                          href={`https://instagram.com/${item.instagram.replace('@', '')}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
+                        <a
+                          href={`https://instagram.com/${item.instagram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="instagram-link-contact"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -595,7 +574,7 @@ export default function AdminKatalogPage() {
             <div className="qr-access-container" style={{ textAlign: 'center', padding: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '8px', color: '#1e3a8a' }}>Barcode Akses Katalog</h2>
               <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '14px' }}>Scan barcode ini untuk masuk ke halaman Katalog Peserta secara mandiri.</p>
-              
+
               <div style={{ background: 'white', padding: '20px', borderRadius: '32px', display: 'inline-flex', boxShadow: '0 20px 40px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '24px' }}>
                 <canvas ref={accessQRCanvasRef} style={{ width: '280px', height: '280px' }} />
               </div>
@@ -605,8 +584,8 @@ export default function AdminKatalogPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button 
-                  className="btn-print-card" 
+                <button
+                  className="btn-print-card"
                   style={{ background: '#3b82f6' }}
                   onClick={() => {
                     const canvas = accessQRCanvasRef.current;
@@ -692,8 +671,8 @@ export default function AdminKatalogPage() {
                       </div>
                     )}
                   </div>
-                  
-                  
+
+
                   <div className="id-qr-box" style={{ padding: "10px", borderRadius: "14px", marginTop: "15px", background: "white", width: "140px", margin: "15px auto" }}>
                     <canvas ref={cardCanvasRef} style={{ width: '120px', height: '120px' }} />
                     <div className="id-qr-label" style={{ fontSize: "9px", marginTop: "6px", fontWeight: "900", color: "#000000", textTransform: "uppercase" }}>Verified Digital ID</div>
@@ -797,8 +776,8 @@ export default function AdminKatalogPage() {
                     </div>
                   )}
                 </div>
-                
-                
+
+
                 <div className="id-qr-box" style={{ padding: "10px", borderRadius: "14px", marginTop: "15px", background: "white", width: "140px", margin: "15px auto" }}>
                   <canvas ref={exportQRCanvasRef} style={{ width: '120px', height: '120px' }} />
                   <div className="id-qr-label" style={{ fontSize: "9px", marginTop: "6px", fontWeight: "900", color: "#000000", textTransform: "uppercase" }}>Verified Digital ID</div>
