@@ -428,7 +428,10 @@ export default function PublicKatalogPage() {
           body: JSON.stringify({ targetId, nomorUnik, token }),
         });
 
-        const json = await res.json();
+        const text = await res.text();
+        if (!text) throw new Error("Server tidak mengembalikan data. Coba lagi.");
+        let json: any;
+        try { json = JSON.parse(text); } catch { throw new Error("Respons server tidak valid. Coba lagi."); }
         if (!res.ok) throw new Error(json.error || "Gagal melakukan pemilihan");
 
         if (json.selections) {
