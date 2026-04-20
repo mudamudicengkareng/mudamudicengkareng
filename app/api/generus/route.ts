@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
       const rawData = await dataQuery.where(finalWhere).orderBy(generus.nama);
 
       // 1. Definisikan Header (Tanpa Daerah)
-      const header = ["NO", "NO. URUT", "NAMA LENGKAP", "L/P", "DESA/CABANG", "PENDIDIKAN", "STATUS"];
+      const header = ["NO", "NO. URUT", "NAMA LENGKAP", "L/P", "DESA", "DAERAH", "PENDIDIKAN", "STATUS"];
 
       // 2. Map Data (Pastikan menggunakan properti dari commonSelect)
       const rows = rawData.map((item, index) => [
@@ -208,6 +208,7 @@ export async function GET(request: NextRequest) {
         item.nama?.toUpperCase(),
         item.jenisKelamin || "-",
         item.mandiriDesaNama || item.desaNama || "-",
+        item.mandiriDesaKota || "-",
         item.pendidikan || "-",
         item.statusNikah || "-"
       ]);
