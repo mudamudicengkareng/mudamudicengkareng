@@ -475,7 +475,9 @@ export default function AdminKatalogPage() {
 
       // Cukup gunakan window.location.href untuk mendownload file dari server
       window.location.href = `/api/generus?${params.toString()}`;
-
+      setTimeout(() => {
+        Swal.close();
+      }, 2000);
     } catch (e) {
       console.error(e);
       Swal.fire("Gagal", "Gagal mengekspor Excel", "error");
