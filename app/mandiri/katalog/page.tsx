@@ -203,7 +203,9 @@ export default function PublicKatalogPage() {
             deviceId,
           });
           const res = await fetch(`/api/public/mandiri/katalog/check-status?${qs}`);
-          const data = await res.json();
+          const rawText = await res.text();
+          if (!rawText) throw new Error("Empty response from check-status");
+          const data = JSON.parse(rawText);
 
           if (data.status === "attended") {
             setHasAttended(true);
