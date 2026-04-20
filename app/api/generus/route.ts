@@ -167,6 +167,9 @@ export async function GET(request: NextRequest) {
       nomorUnik: generus.nomorUnik,
       nama: generus.nama,
       foto: generus.foto, // <--- TAMBAHKAN INI LAGI
+      tanggalLahir: generus.tanggalLahir,
+      tempatLahir: generus.tempatLahir,
+      alamat: generus.alamat,
       jenisKelamin: generus.jenisKelamin,
       nomorUrut: mandiri.nomorUrut,
       desaNama: desa.nama,
@@ -175,6 +178,8 @@ export async function GET(request: NextRequest) {
       pendidikan: generus.pendidikan,
       pekerjaan: generus.pekerjaan, // Tambahkan ini juga
       statusNikah: generus.statusNikah,
+      hobi: generus.hobi,
+      makananMinumanFavorit: generus.makananMinumanFavorit,
       instagram: generus.instagram, // Tambahkan ini agar link IG tidak hilang
       noTelp: canSeePrivateData ? generus.noTelp : sql<string | null>`NULL`,
       panitiaStatus: formPanitiaDanPengurus.dapukan, // Tambahkan ini agar badge Panitia muncul

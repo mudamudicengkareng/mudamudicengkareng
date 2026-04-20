@@ -8,7 +8,8 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet
+  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet,
+  BookOpen
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -44,6 +45,9 @@ export default function AdminKatalogPage() {
   const [siteLogo, setSiteLogo] = useState<string | null>(null);
   const [showAccessQR, setShowAccessQR] = useState(false);
   const accessQRCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [isExportingBook, setIsExportingBook] = useState(false);
+  const [exportBookPair, setExportBookPair] = useState<GenerusItem[]>([]);
+  const exportBookRef = useRef<HTMLDivElement>(null);
   const limit = 20;
 
   const fetchData = useCallback(async () => {
@@ -184,6 +188,79 @@ export default function AdminKatalogPage() {
       });
       setPublicStatus(newStatus);
       Swal.fire("Berhasil", "Status diperbarui", "success");
+    }
+  };
+
+  const handleExportCatalogBook = async () => {
+    setIsExportingBook(true);
+    Swal.fire({
+      title: "Menyiapkan Buku Katalog...",
+      text: "Mohon tunggu, sedang menyusun profil lengkap (Urut berdasarkan Nomor Unik).",
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+      const params = new URLSearchParams({
+        search, all: "true", mandiriOnly: "true",
+        jenisKelamin: gender, status: status, pendidikan: pendidikan,
+        mandiriDesaId: selectedRegion, desaId: selectedDesa
+      });
+      const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      let allParticipants: GenerusItem[] = json.data || [];
+
+      if (allParticipants.length === 0) {
+        Swal.fire("Info", "Tidak ada data untuk diekspor", "info");
+        setIsExportingBook(false);
+        return;
+      }
+
+      // --- LOGIKA SORTING BERDASARKAN NOMOR UNIK ---
+      allParticipants.sort((a, b) => {
+        const unikA = a.nomorUrut || 0;
+        const unikB = b.nomorUrut || 0;
+        // Menggunakan numeric: true agar urutan angka benar (contoh: GNR2 sebelum GNR10)
+        return unikA - unikB;
+      });
+
+      const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+
+      // Loop loncat 2
+      for (let i = 0; i < allParticipants.length; i += 2) {
+        const pair = [allParticipants[i]];
+        if (allParticipants[i + 1]) pair.push(allParticipants[i + 1]);
+
+        setExportBookPair(pair);
+
+        // Tunggu render
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const element = exportBookRef.current;
+        if (!element) continue;
+
+        const canvas = await html2canvas(element, {
+          useCORS: true,
+          scale: 2,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/jpeg", 0.9);
+        if (i > 0) pdf.addPage();
+
+        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+
+        Swal.update({ text: `Menyusun halaman ${Math.ceil((i + 1) / 2)} dari ${Math.ceil(allParticipants.length / 2)}` });
+      }
+
+      pdf.save(`BUKU_KATALOG_JB2_SORTED_${new Date().getTime()}.pdf`);
+      Swal.fire("Berhasil", "Buku Katalog telah berhasil dibuat.", "success");
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Gagal", "Terjadi kesalahan saat membuat PDF", "error");
+    } finally {
+      setIsExportingBook(false);
+      setExportBookPair([]);
     }
   };
 
@@ -425,6 +502,10 @@ export default function AdminKatalogPage() {
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />
               <span>Cetak ID Card</span>
+            </button>
+            <button className="btn-export-id-cards" onClick={handleExportCatalogBook} disabled={isExportingBook}>
+              <BookOpen size={16} />
+              <span>Buku Katalog</span>
             </button>
           </div>
         </div>
@@ -802,6 +883,107 @@ export default function AdminKatalogPage() {
           </div>
         )}
       </div>
+
+
+      {/* Hidden Export Book Renderer */}
+      <div style={{ position: "absolute", left: "-9999px", top: 0, zIndex: -200 }}>
+        {exportBookPair.length > 0 && (
+          <div ref={exportBookRef} style={{ width: "210mm", height: "297mm", background: "white", padding: "10mm", boxSizing: "border-box", fontFamily: "Inter, sans-serif", display: "flex", flexDirection: "column", gap: "10mm" }}>
+
+            {exportBookPair.map((item, idx) => (
+              <div key={item.id} style={{
+                flex: 1,
+                border: "1px solid #e2e8f0",
+                borderRadius: "15px",
+                padding: "10mm",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                maxHeight: "135mm", // Memastikan pas setengah halaman
+                overflow: "hidden"
+              }}>
+                {/* Header Profil */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #3b82f6", paddingBottom: "5px", marginBottom: "15px" }}>
+                  <h2 style={{ margin: 0, color: "#1e3a8a", fontSize: "18px", fontWeight: "800" }}>PROFIL PESERTA #{item.nomorUrut || "000"}</h2>
+                  <span style={{ fontSize: "10px", color: "#94a3b8" }}>ID: {item.nomorUnik}</span>
+                </div>
+
+                <div style={{ display: "flex", gap: "20px" }}>
+                  {/* Box Foto - Rasio 3:4 Fixed */}
+                  <div style={{ width: "45mm" }}>
+                    <div style={{
+                      width: "45mm",
+                      height: "60mm",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      background: "#f8fafc",
+                      border: "2px solid #f1f5f9"
+                    }}>
+                      {item.foto ? (
+                        <img
+                          src={item.foto}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover", // INI BIAR CLIPPING (GA STRETCH)
+                            display: "block"
+                          }}
+                          crossOrigin="anonymous"
+                          alt=""
+                        />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "30px", fontWeight: "bold", color: "#cbd5e1" }}>
+                          {item.nama.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ marginTop: "10px", padding: "6px", background: item.jenisKelamin === 'L' ? "#eff6ff" : "#fff1f2", borderRadius: "6px", textAlign: "center" }}>
+                      <span style={{ fontSize: "10px", fontWeight: "900", color: item.jenisKelamin === 'L' ? "#1e40af" : "#be123c" }}>
+                        {item.jenisKelamin === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Data Detail */}
+                  <div style={{ flex: 1 }}>
+                    <h1 style={{ margin: "0 0 15px 0", fontSize: "22px", fontWeight: "900", color: "#0f172a", lineHeight: 1.1 }}>{item.nama.toUpperCase()}</h1>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <DataField label="TTL" value={`${item.tempatLahir || '-'}, ${item.tanggalLahir || '-'}`} />
+                      <DataField label="Pendidikan" value={item.pendidikan} />
+                      <DataField label="Pekerjaan" value={item.pekerjaan} />
+                      <DataField label="Suku" value={item.suku} />
+                      <DataField label="Status" value={item.statusNikah} />
+                      <DataField label="Instagram" value={item.instagram ? `@${item.instagram.replace('@', '')}` : '-'} />
+                    </div>
+
+                    <div style={{ marginTop: "15px" }}>
+                      <DataField label="Alamat" value={item.alamat} />
+                    </div>
+
+                    <div style={{ marginTop: "12px", padding: "10px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #f1f5f9" }}>
+                      <p style={{ margin: "0 0 4px 0", fontSize: "11px" }}><b>Hobi:</b> {item.hobi || "-"}</p>
+                      <p style={{ margin: 0, fontSize: "11px" }}><b>Favorit:</b> {item.makananMinumanFavorit || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Wilayah Tag */}
+                <div style={{ position: "absolute", bottom: "5mm", right: "10mm", fontSize: "9px", color: "#94a3b8", fontWeight: "600" }}>
+                  {item.mandiriDesaKota} &bull; {item.mandiriDesaNama || item.desaNama}
+                </div>
+              </div>
+            ))}
+
+            {/* Footer Halaman A4 */}
+            <div style={{ marginTop: "auto", borderTop: "1px solid #f1f5f9", paddingTop: "5px", display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#cbd5e1" }}>
+              <span>KATALOG DIGITAL JB2 &copy; 2026</span>
+              <span>Dicetak: {new Date().toLocaleDateString('id-ID')}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
 
       <style jsx>{`
         .pdkt-admin-container { 
@@ -1488,4 +1670,13 @@ function calculateAge(birthdayStr?: string) {
   let age = today.getFullYear() - birthDate.getFullYear();
   if (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
   return age;
+}
+
+function DataField({ label, value }: { label: string, value?: string | null }) {
+  return (
+    <div style={{ marginBottom: "2px" }}>
+      <label style={{ display: "block", fontSize: "8px", color: "#94a3b8", textTransform: "uppercase", fontWeight: "800", letterSpacing: "0.5px" }}>{label}</label>
+      <p style={{ margin: 0, fontSize: "12px", color: "#334155", fontWeight: "600", lineHeight: "1.3" }}>{value || "-"}</p>
+    </div>
+  );
 }
