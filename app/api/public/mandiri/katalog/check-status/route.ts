@@ -25,18 +25,23 @@ export async function GET(request: NextRequest) {
 
     const kegiatanId = latestActivity[0].id;
 
-    // 2. Find the generus by nomorPeserta OR nomorUnik
+    // 2. Find the generus - Require BOTH nomorPeserta AND nomorUnik for explicit login
     let generusId = null;
 
-    if (nomorPeserta) {
-        // Search in mandiri table for the latest sequence number
-        const m = await db.select({ generusId: mandiri.generusId })
-            .from(mandiri)
-            .where(eq(mandiri.nomorUrut, Number(nomorPeserta)))
-            .orderBy(desc(mandiri.createdAt))
+    if (nomorPeserta && nomorUnik) {
+        // Find user that matches BOTH nomorUrut in mandiri table AND nomorUnik in generus table
+        const userMatch = await db.select({ id: generus.id })
+            .from(generus)
+            .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
+            .where(and(
+                eq(mandiri.nomorUrut, Number(nomorPeserta)),
+                eq(generus.nomorUnik, nomorUnik)
+            ))
             .limit(1);
-        if (m.length > 0) generusId = m[0].generusId;
+        
+        if (userMatch.length > 0) generusId = userMatch[0].id;
     } else if (nomorUnik) {
+        // Fallback or passive check using only nomorUnik/sessionToken
         const u = await db.select({ id: generus.id })
             .from(generus)
             .where(eq(generus.nomorUnik, nomorUnik))

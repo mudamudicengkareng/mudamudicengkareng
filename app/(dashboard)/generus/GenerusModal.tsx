@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { GenerusItem } from "@/lib/types";
 import Swal from "sweetalert2";
+import { Eye, EyeOff } from "lucide-react";
 
 interface Desa { id: number; nama: string; }
 interface Kelompok { id: number; nama: string; }
@@ -78,6 +79,8 @@ export default function GenerusModal({ item, onClose, onSaved, isMandiri }: Prop
   const [kelompokList, setKelompokList] = useState<Kelompok[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedKota, setSelectedKota] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
 
   // ─── Ambil data sesi ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -382,7 +385,62 @@ export default function GenerusModal({ item, onClose, onSaved, isMandiri }: Prop
                 </div>
               </div>
 
+              <div style={{ marginBottom: "20px", padding: "15px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                <p style={{ fontWeight: 600, fontSize: "14px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "18px" }}>🔐</span> Akun Login
+                </p>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Email Login</label>
+                    <input name="email" className="form-control" value={form.email} onChange={handleChange} placeholder="Email untuk login..." style={{ background: "#fff" }} />
+                    <p style={{ fontSize: "10.5px", color: "var(--text-muted)", marginTop: "4px" }}>
+                       Dapat dikosongkan jika ingin otomatis.
+                    </p>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isEdit ? "Ubah Password" : "Password Login"}</label>
+                    <div style={{ position: "relative" }}>
+                      <input 
+                        name="password" 
+                        type={showPassword ? "text" : "password"} 
+                        className="form-control" 
+                        value={form.password} 
+                        onChange={handleChange} 
+                        placeholder={isEdit ? "Kosongkan jika tidak diubah" : "Kosongkan untuk otomatis"} 
+                        style={{ background: "#fff", paddingRight: "40px" }} 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: "absolute",
+                          right: "10px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#64748b",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "4px"
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {!isEdit && (
+                      <p style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+                        Jika kosong, sistem akan menggunakan <b>Nomor Unik</b>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="form-row">
+
                 {isMandiri ? (
                   <>
                     <div className="form-group">
@@ -499,26 +557,6 @@ export default function GenerusModal({ item, onClose, onSaved, isMandiri }: Prop
                 <input name="makananMinumanFavorit" className="form-control" value={form.makananMinumanFavorit} onChange={handleChange} required placeholder="Favorit..." />
               </div>
 
-              <div style={{ marginTop: "20px", padding: "15px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
-                <p style={{ fontWeight: 600, fontSize: "14px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "18px" }}>🔐</span> Akun Login (Opsional)
-                </p>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Email Login</label>
-                    <input name="email" className="form-control" value={form.email} onChange={handleChange} placeholder="Email untuk login..." style={{ background: "#fff" }} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">{isEdit ? "Ubah Password" : "Password Login"}</label>
-                    <input name="password" type="password" className="form-control" value={form.password} onChange={handleChange} placeholder={isEdit ? "Kosongkan jika tidak diubah" : "Kosongkan untuk otomatis"} style={{ background: "#fff" }} />
-                  </div>
-                </div>
-                {!isEdit && (
-                  <p style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
-                    Jika dikosongkan, sistem akan otomatis menggunakan <b>Nomor Unik</b> sebagai Email & Password.
-                  </p>
-                )}
-              </div>
             </div>
 
             <div className="modal-footer">

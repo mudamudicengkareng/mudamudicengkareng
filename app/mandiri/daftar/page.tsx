@@ -439,7 +439,14 @@ export default function MandiriDaftarPage() {
 
           <div style={{ background: "white", padding: "30px", borderRadius: "16px", border: "2px dashed #3b82f6", marginBottom: "24px", position: "relative" }}>
             <p style={{ fontSize: "11px", color: "#64748b", margin: "0 0 8px 0", textTransform: "uppercase", fontWeight: "700", letterSpacing: "1px" }}>Nomor Peserta</p>
-            <h3 style={{ fontSize: "42px", color: "var(--primary)", letterSpacing: "2px", margin: "0 0 20px 0", fontWeight: "900" }}>#{result?.nomorUrut}</h3>
+            <h3 style={{ fontSize: "42px", color: "var(--primary)", letterSpacing: "2px", margin: "0 0 10px 0", fontWeight: "900" }}>#{result?.nomorUrut}</h3>
+            
+            <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "12px", marginBottom: "20px", border: "1px solid #e2e8f0" }}>
+              <p style={{ fontSize: "10px", color: "#64748b", margin: "0 0 4px 0", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>🔑 Kode Unik Rahasia (Login)</p>
+              <h4 style={{ fontSize: "20px", color: "#1e293b", margin: 0, fontFamily: "monospace", letterSpacing: "1px", fontWeight: "700" }}>{result?.nomorUnik}</h4>
+              <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "4px", fontStyle: "italic" }}>Gunakan kode ini sebagai <b>Password</b> saat login pertama kali.</p>
+            </div>
+
 
             {/* QR Code Section */}
             <div style={{

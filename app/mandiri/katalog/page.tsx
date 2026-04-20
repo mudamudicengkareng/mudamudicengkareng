@@ -492,12 +492,13 @@ export default function PublicKatalogPage() {
   }
 
   function LoginModal({ onVerified }: { onVerified: (userData: any) => void }) {
-    const [unik, setUnik] = useState("");
+    const [noUrut, setNoUrut] = useState("");
+    const [noUnik, setNoUnik] = useState("");
     const [status, setStatus] = useState<"idle" | "verifying" | "error" | "waiting">("idle");
     const [errorMsg, setErrorMsg] = useState("");
 
     const verify = async () => {
-      if (!unik) return;
+      if (!noUrut || !noUnik) return;
       setStatus("verifying");
       let deviceId = localStorage.getItem("mandiri_device_id");
       if (!deviceId) {
@@ -506,12 +507,13 @@ export default function PublicKatalogPage() {
       }
 
       try {
-        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorPeserta=${unik}&deviceId=${deviceId}`);
+        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorPeserta=${noUrut}&nomorUnik=${noUnik}&deviceId=${deviceId}`);
         const resData = await res.json();
         if (resData.status === "attended") {
-          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik);
+          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || noUnik);
           localStorage.setItem("attended_session_token", resData.sessionToken);
           localStorage.setItem("attended_nomor_urut_peserta", resData.nomorUrut);
+          localStorage.setItem("attended_no_unik_peserta", noUnik); // For display/debug if needed
           localStorage.setItem("attended_role", resData.role || "Peserta");
           onVerified({
             id: resData.id,
@@ -557,27 +559,40 @@ export default function PublicKatalogPage() {
           <div className="icon-badge">
             <Lock size={28} className="text-blue-500" />
           </div>
-          <h2>Login Katalog</h2>
-          <p>Masukkan Nomor Peserta  dan Nomor Panitia untuk akses penuh</p>
+          <h2>Akses Katalog</h2>
+          <p>Masukkan Nomor Urut dan Kode Unik Anda</p>
         </div>
 
         <div className="modal-body">
-          <div className="input-field">
-            <User size={18} className="input-icon" />
-            <input
-              type="number"
-              placeholder="Contoh: 123"
-              value={unik}
-              onChange={(e) => setUnik(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && verify()}
-              autoFocus
-            />
+          <div className="input-group">
+            <div className="input-field">
+              <User size={18} className="input-icon" />
+              <input
+                type="number"
+                placeholder="Nomor Urut (Contoh: 123)"
+                value={noUrut}
+                onChange={(e) => setNoUrut(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && verify()}
+                autoFocus
+              />
+            </div>
+
+            <div className="input-field" style={{ marginTop: "12px" }}>
+              <Lock size={18} className="input-icon" />
+              <input
+                type="text"
+                placeholder="Kode Unik (Contoh: MND123456)"
+                value={noUnik}
+                onChange={(e) => setNoUnik(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && verify()}
+              />
+            </div>
           </div>
 
           <button
             className={`login-btn ${status === "verifying" ? "loading" : ""}`}
             onClick={verify}
-            disabled={status === "verifying" || !unik}
+            disabled={status === "verifying" || !noUrut || !noUnik}
           >
             {status === "verifying" ? (
               <span className="flex items-center gap-2">
