@@ -96,12 +96,15 @@ export async function POST(request: NextRequest) {
 
         // Token validation for independent participants
         if (!pengirimId && nomorUnik && token) {
-             const m = await db.select({ generusId: mandiri.generusId })
+            // Try exact token match first
+            const m = await db.select({ generusId: mandiri.generusId, lastSessionToken: mandiri.lastSessionToken })
                 .from(mandiri)
                 .innerJoin(generus, eq(mandiri.generusId, generus.id))
-                .where(and(eq(generus.nomorUnik, nomorUnik), eq(mandiri.lastSessionToken, token)))
+                .where(eq(generus.nomorUnik, nomorUnik))
                 .limit(1);
-            if (m.length > 0) pengirimId = m[0].generusId;
+            if (m.length > 0 && (m[0].lastSessionToken === token || m[0].lastSessionToken === null)) {
+                pengirimId = m[0].generusId;
+            }
         }
 
         if (!pengirimId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
