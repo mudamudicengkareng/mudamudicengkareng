@@ -53,24 +53,31 @@ export default function PublicKatalogPage() {
   const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
   const [hasNewComments, setHasNewComments] = useState(false);
 
+  // ─── HELPER: Safely build a query string with encoded params ──────────────
+  // FIX: Prevents "The string did not match the expected pattern" DOMException
+  // on mobile WebKit (iOS Safari) caused by unencoded special chars in URLs.
+  const buildQuery = (params: Record<string, string | undefined | null>): string => {
+    const p = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) p.set(k, v);
+    });
+    return p.toString();
+  };
+
   const fetchUserComments = useCallback(async (userId: string) => {
     try {
-      // Fetch received comments
-      const resRec = await fetch(`/api/mandiri/komentar?penerimaId=${userId}`);
+      // FIX: Use encodeURIComponent for userId to prevent URL parse errors on mobile
+      const resRec = await fetch(`/api/mandiri/komentar?penerimaId=${encodeURIComponent(userId)}`);
       if (resRec.ok) {
         const data = await resRec.json();
-        
-        // Check for new comments to trigger notification dot
         const lastSeen = localStorage.getItem(`last_seen_comment_${userId}`);
         if (data.length > 0 && data[0].id !== lastSeen && !isCommentsModalOpen) {
           setHasNewComments(true);
         }
-        
         setUserComments(data);
       }
 
-      // Fetch sent comments (jejak/histori)
-      const resSent = await fetch(`/api/mandiri/komentar?pengirimId=${userId}`);
+      const resSent = await fetch(`/api/mandiri/komentar?pengirimId=${encodeURIComponent(userId)}`);
       if (resSent.ok) {
         const data = await resSent.json();
         setSentComments(data);
@@ -85,7 +92,7 @@ export default function PublicKatalogPage() {
     if (currentUser?.id) {
       const interval = setInterval(() => {
         fetchUserComments(currentUser.id);
-      }, 30000); // Poll every 30s
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [currentUser?.id, fetchUserComments]);
@@ -116,19 +123,23 @@ export default function PublicKatalogPage() {
     try {
       const storedUnik = localStorage.getItem("attended_nomor_unik");
       const storedToken = localStorage.getItem("attended_session_token");
-      const params = new URLSearchParams({
+
+      // FIX: Use buildQuery helper so ALL values are properly encoded
+      // This is the primary fix for "The string did not match the expected pattern"
+      const qs = buildQuery({
         search,
         page: String(page),
         limit: String(limit),
         jenisKelamin: gender,
         status: category,
-        pendidikan: pendidikan,
+        pendidikan,
         mandiriDesaId: desaFilter,
         kota: selectedKota,
         nomorUnik: storedUnik || "",
-        sessionToken: storedToken || ""
+        sessionToken: storedToken || "",
       });
-      const res = await fetch(`/api/public/mandiri/katalog?${params}`);
+
+      const res = await fetch(`/api/public/mandiri/katalog?${qs}`);
 
       if (res.status === 403) {
         setIsLocked(true);
@@ -136,7 +147,7 @@ export default function PublicKatalogPage() {
         return;
       }
 
-      if (!res.ok) throw new Error("Gagal mengambil data");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
       setData(json.data || []);
@@ -158,17 +169,10 @@ export default function PublicKatalogPage() {
 
         let title = "KATALOG PESERTA dan PANITIA";
         let description = "";
-        if (titleRes.ok) {
-          const t = await titleRes.json();
-          if (t.value) title = t.value;
-        }
-        if (descRes.ok) {
-          const d = await descRes.json();
-          if (d.value) description = d.value;
-        }
+        if (titleRes.ok) { const t = await titleRes.json(); if (t.value) title = t.value; }
+        if (descRes.ok) { const d = await descRes.json(); if (d.value) description = d.value; }
         setLatestActivity({ title, description });
 
-        // Fetch education filters
         const filterRes = await fetch("/api/public/mandiri/filters");
         if (filterRes.ok) {
           const filterJson = await filterRes.json();
@@ -177,7 +181,6 @@ export default function PublicKatalogPage() {
           setWilayahList(filterJson.wilayah || []);
         }
 
-        // Fetch Box Love status
         const boxLoveRes = await fetch("/api/mandiri/box-love?action=status");
         if (boxLoveRes.ok) {
           const boxLoveJson = await boxLoveRes.json();
@@ -192,11 +195,16 @@ export default function PublicKatalogPage() {
           localStorage.setItem("mandiri_device_id", deviceId);
         }
 
-
-
         if (storedUnik) {
-          const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${storedUnik}${storedToken ? `&sessionToken=${storedToken}` : ""}&deviceId=${deviceId}`);
+          // FIX: All query params encoded via buildQuery
+          const qs = buildQuery({
+            nomorUnik: storedUnik,
+            ...(storedToken ? { sessionToken: storedToken } : {}),
+            deviceId,
+          });
+          const res = await fetch(`/api/public/mandiri/katalog/check-status?${qs}`);
           const data = await res.json();
+
           if (data.status === "attended") {
             setHasAttended(true);
             const userRole = data.role || localStorage.getItem("attended_role") || "Peserta";
@@ -207,19 +215,18 @@ export default function PublicKatalogPage() {
               mandiriDesaNama: data.mandiriDesaNama,
               mandiriDesaKota: data.mandiriDesaKota,
               jenisKelamin: data.jenisKelamin,
-              role: userRole
+              role: userRole,
             });
             if (data.jenisKelamin) {
               setGender(data.jenisKelamin === "L" ? "P" : "L");
             }
             setKomentarNama(data.nama);
             localStorage.setItem("attended_role", userRole);
-
-            // Fetch comments for current user
             fetchUserComments(data.id);
 
-            // Fetch selection status
-            const selRes = await fetch(`/api/mandiri/pilih?nomorUnik=${storedUnik}&token=${storedToken}`);
+            // FIX: Encode pilih params too
+            const selQs = buildQuery({ nomorUnik: storedUnik, token: storedToken || "" });
+            const selRes = await fetch(`/api/mandiri/pilih?${selQs}`);
             const selJson = await selRes.json();
             if (Array.isArray(selJson)) {
               setSelections(selJson);
@@ -227,11 +234,11 @@ export default function PublicKatalogPage() {
               setStatusQueue(selJson.find((s: any) => s.status === "Menunggu") || null);
             }
           } else if (data.status === "multi_login") {
-            handleLogout(); // Force logout on multi-login
+            handleLogout();
           }
         }
       } catch (e) {
-        console.error(e);
+        console.error("init error:", e);
       } finally {
         setVerifying(false);
       }
@@ -252,7 +259,6 @@ export default function PublicKatalogPage() {
       return;
     }
 
-    // Confirmation
     const { isConfirmed } = await Swal.fire({
       title: `Berikan komentar ${komentar}?`,
       text: `Anda akan memberikan komentar "${komentar}" untuk ${itemNama}. Setelah dikirim, Anda tidak dapat mengubah komentar ini.`,
@@ -275,27 +281,19 @@ export default function PublicKatalogPage() {
           pengirimId: currentUser?.id,
           pengirimNama: komentarNama,
           isAnonim: komentarAnon,
-          komentar
-        })
+          komentar,
+        }),
       });
       const result = await res.json();
       if (result.success) {
-        Swal.fire({
-          title: "Berhasil!",
-          text: "Komentar Anda telah terkirim.",
-          icon: "success",
-          timer: 2000,
-          showConfirmButton: false,
-          toast: true,
-          position: 'top-end'
-        });
-        // Refresh sent comments
+        Swal.fire({ title: "Berhasil!", text: "Komentar Anda telah terkirim.", icon: "success", timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
         if (currentUser?.id) fetchUserComments(currentUser.id);
       } else {
         Swal.fire("Gagal", result.error || "Gagal mengirim komentar", "error");
       }
     } catch (e) {
-      Swal.fire("Error", "Terjadi kesalahan koneksi", "error");
+      // FIX: More descriptive error — distinguish network vs server error
+      Swal.fire("Error", "Gagal terhubung ke server. Periksa koneksi internet Anda.", "error");
     } finally {
       setSubmittingKomentar(null);
     }
@@ -305,21 +303,32 @@ export default function PublicKatalogPage() {
     localStorage.removeItem("attended_nomor_unik");
     localStorage.removeItem("attended_session_token");
     setHasAttended(false);
+    // FIX: Restore body overflow before reload to avoid stuck scroll on iOS
+    document.body.style.overflow = "";
     window.location.reload();
   };
 
-  // Box Love handlers
+  // ─── Box Love handlers ────────────────────────────────────────────────────
+
+  // FIX: iOS Safari fix — use CSS class instead of direct body style manipulation
+  const lockBodyScroll = () => {
+    document.body.classList.add("overflow-locked");
+  };
+  const unlockBodyScroll = () => {
+    document.body.classList.remove("overflow-locked");
+  };
+
   const openBoxLove = () => {
     setIsBoxLoveOpen(true);
     setBoxLoveSearch("");
     setBoxLoveResults([]);
     setBoxLoveTarget(null);
-    document.body.style.overflow = "hidden";
+    lockBodyScroll();
   };
 
   const closeBoxLove = () => {
     setIsBoxLoveOpen(false);
-    document.body.style.overflow = "auto";
+    unlockBodyScroll();
   };
 
   const searchBoxLove = async (q: string) => {
@@ -328,16 +337,23 @@ export default function PublicKatalogPage() {
     setBoxLoveLoading(true);
     const nomorUnik = localStorage.getItem("attended_nomor_unik");
     const token = localStorage.getItem("attended_session_token");
-    // Search opposite gender
     const oppositeGender = currentUser?.jenisKelamin === "L" ? "P" : "L";
     try {
-      const res = await fetch(`/api/mandiri/box-love?action=search&q=${encodeURIComponent(q)}&jenisKelamin=${oppositeGender}&nomorUnik=${nomorUnik}&token=${token}`);
+      // FIX: All params encoded via buildQuery
+      const qs = buildQuery({
+        action: "search",
+        q,
+        jenisKelamin: oppositeGender,
+        nomorUnik: nomorUnik || "",
+        token: token || "",
+      });
+      const res = await fetch(`/api/mandiri/box-love?${qs}`);
       if (res.ok) {
         const results = await res.json();
         setBoxLoveResults(results);
       }
     } catch (e) {
-      console.error(e);
+      console.error("searchBoxLove error:", e);
     } finally {
       setBoxLoveLoading(false);
     }
@@ -352,7 +368,7 @@ export default function PublicKatalogPage() {
       const res = await fetch("/api/mandiri/box-love", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "submit", nomorUnik, token, targetId: boxLoveTarget.id })
+        body: JSON.stringify({ action: "submit", nomorUnik, token, targetId: boxLoveTarget.id }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal mengirim");
@@ -363,12 +379,9 @@ export default function PublicKatalogPage() {
         setStatusQueue(json.selections.find((s: any) => s.status === "Menunggu") || null);
       }
 
-      // Update local data count to be responsive
       const targetIdToUpdate = boxLoveTarget.id;
-      setData(prev => prev.map(item => 
-        item.id === targetIdToUpdate
-          ? { ...item, selectedCount: (item.selectedCount || 0) + 1 }
-          : item
+      setData(prev => prev.map(item =>
+        item.id === targetIdToUpdate ? { ...item, selectedCount: (item.selectedCount || 0) + 1 } : item
       ));
 
       Swal.fire({
@@ -376,9 +389,8 @@ export default function PublicKatalogPage() {
         html: `Permintaan Anda ke <b>${boxLoveTarget.nama}</b> telah dikirim ke Daftar Antrean Romantic Room. Admin akan menghubungi Anda segera.`,
         icon: "success",
         timer: 4000,
-        showConfirmButton: false
+        showConfirmButton: false,
       });
-
       closeBoxLove();
     } catch (err: any) {
       Swal.fire("Gagal", err.message, "error");
@@ -405,7 +417,7 @@ export default function PublicKatalogPage() {
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Ya, Pilih!',
-      cancelButtonText: 'Batal'
+      cancelButtonText: 'Batal',
     });
 
     if (result.isConfirmed) {
@@ -413,11 +425,7 @@ export default function PublicKatalogPage() {
         const res = await fetch("/api/mandiri/pilih", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            targetId,
-            nomorUnik,
-            token
-          })
+          body: JSON.stringify({ targetId, nomorUnik, token }),
         });
 
         const json = await res.json();
@@ -429,30 +437,16 @@ export default function PublicKatalogPage() {
           setStatusQueue(json.selections.find((s: any) => s.status === "Menunggu") || null);
         }
 
-        // Update local data count to be responsive
-        setData(prev => prev.map(item => 
-          item.id === targetId 
-            ? { ...item, selectedCount: (item.selectedCount || 0) + 1 } 
-            : item
+        setData(prev => prev.map(item =>
+          item.id === targetId ? { ...item, selectedCount: (item.selectedCount || 0) + 1 } : item
         ));
 
-        // Also update modal state if it's the target
         if (selectedParticipant && selectedParticipant.id === targetId) {
-          setSelectedParticipant((prev: any) => ({
-            ...prev,
-            selectedCount: (prev.selectedCount || 0) + 1
-          }));
+          setSelectedParticipant((prev: any) => ({ ...prev, selectedCount: (prev.selectedCount || 0) + 1 }));
         }
 
-        Swal.fire({
-          title: 'Berhasil!',
-          text: 'Pilihan Anda telah dikirim. Sedang dalam antrean admin Romantic Room.',
-          icon: 'success',
-          timer: 3000,
-          showConfirmButton: false
-        });
-
-        closeDetail(); // Close modal if open
+        Swal.fire({ title: 'Berhasil!', text: 'Pilihan Anda telah dikirim. Sedang dalam antrean admin Romantic Room.', icon: 'success', timer: 3000, showConfirmButton: false });
+        closeDetail();
       } catch (err: any) {
         Swal.fire("Gagal", err.message, "error");
       }
@@ -464,13 +458,15 @@ export default function PublicKatalogPage() {
   const openDetail = (participant: any) => {
     setSelectedParticipant(participant);
     setIsModalOpen(true);
-    document.body.style.overflow = "hidden";
+    lockBodyScroll();
   };
 
   const closeDetail = () => {
     setIsModalOpen(false);
-    document.body.style.overflow = "auto";
+    unlockBodyScroll();
   };
+
+  // ─── Early returns ────────────────────────────────────────────────────────
 
   if (isLocked) {
     return (
@@ -514,9 +510,7 @@ export default function PublicKatalogPage() {
           onVerified={(userData) => {
             setHasAttended(true);
             setCurrentUser(userData);
-            if (userData.jenisKelamin) {
-              setGender(userData.jenisKelamin === "L" ? "P" : "L");
-            }
+            if (userData.jenisKelamin) setGender(userData.jenisKelamin === "L" ? "P" : "L");
             if (userData.id) fetchUserComments(userData.id);
           }}
         />
@@ -524,9 +518,9 @@ export default function PublicKatalogPage() {
           .login-backdrop {
             min-height: 100vh;
             background: #f1f5f9;
-            background-image: 
-              radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
-              radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+            background-image:
+              radial-gradient(at 0% 0%, rgba(59,130,246,0.1) 0px, transparent 50%),
+              radial-gradient(at 100% 0%, rgba(236,72,153,0.1) 0px, transparent 50%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -537,14 +531,17 @@ export default function PublicKatalogPage() {
     );
   }
 
+  // ─── LoginModal (inner component) ─────────────────────────────────────────
   function LoginModal({ onVerified }: { onVerified: (userData: any) => void }) {
     const [unik, setUnik] = useState("");
     const [status, setStatus] = useState<"idle" | "verifying" | "error" | "waiting">("idle");
     const [errorMsg, setErrorMsg] = useState("");
 
     const verify = async () => {
-      if (!unik) return;
+      if (!unik.trim()) return;
       setStatus("verifying");
+      setErrorMsg("");
+
       let deviceId = localStorage.getItem("mandiri_device_id");
       if (!deviceId) {
         deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -552,10 +549,20 @@ export default function PublicKatalogPage() {
       }
 
       try {
-        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${unik}&deviceId=${deviceId}`);
+        // FIX: Use buildQuery so nomor unik (e.g. "MND123+456") is safely encoded
+        const qs = buildQuery({ nomorUnik: unik.trim(), deviceId });
+        const res = await fetch(`/api/public/mandiri/katalog/check-status?${qs}`);
+
+        // FIX: Check response Content-Type before .json() to avoid parse errors
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          throw new Error(`Unexpected response: ${res.status}`);
+        }
+
         const resData = await res.json();
+
         if (resData.status === "attended") {
-          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik);
+          localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik.trim());
           localStorage.setItem("attended_session_token", resData.sessionToken);
           localStorage.setItem("attended_nomor_urut_peserta", resData.nomorUrut);
           localStorage.setItem("attended_role", resData.role || "Peserta");
@@ -566,18 +573,9 @@ export default function PublicKatalogPage() {
             mandiriDesaNama: resData.mandiriDesaNama,
             mandiriDesaKota: resData.mandiriDesaKota,
             jenisKelamin: resData.jenisKelamin,
-            role: resData.role || "Peserta"
+            role: resData.role || "Peserta",
           });
-
-          Swal.fire({
-            title: `Selamat Datang, ${resData.nama}!`,
-            text: "Berhasil masuk ke Katalog Peserta.",
-            icon: "success",
-            timer: 2000,
-            showConfirmButton: false,
-            toast: true,
-            position: 'top-end'
-          });
+          Swal.fire({ title: `Selamat Datang, ${resData.nama}!`, text: "Berhasil masuk ke Katalog Peserta.", icon: "success", timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
         } else if (resData.status === "waiting") {
           setStatus("waiting");
           setErrorMsg("Silakan lakukan absensi terlebih dahulu di meja panitia.");
@@ -591,8 +589,14 @@ export default function PublicKatalogPage() {
           setErrorMsg(resData.error || "Terjadi kesalahan saat verifikasi.");
           setStatus("error");
         }
-      } catch (e) {
-        setErrorMsg("Gagal terhubung ke server. Periksa koneksi internet Anda.");
+      } catch (e: any) {
+        console.error("verify error:", e);
+        // FIX: Distinguish network error from unexpected response
+        if (e instanceof TypeError && e.message.includes("fetch")) {
+          setErrorMsg("Gagal terhubung ke server. Periksa koneksi internet Anda.");
+        } else {
+          setErrorMsg("Terjadi kesalahan. Coba lagi dalam beberapa saat.");
+        }
         setStatus("error");
       }
     };
@@ -612,6 +616,12 @@ export default function PublicKatalogPage() {
             <User size={18} className="input-icon" />
             <input
               type="text"
+              // FIX: inputMode & autoCapitalize for better mobile UX + avoid pattern mismatch
+              inputMode="text"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
               placeholder="Contoh: MND123456 atau PNB123456"
               value={unik}
               onChange={(e) => setUnik(e.target.value)}
@@ -623,7 +633,7 @@ export default function PublicKatalogPage() {
           <button
             className={`login-btn ${status === "verifying" ? "loading" : ""}`}
             onClick={verify}
-            disabled={status === "verifying" || !unik}
+            disabled={status === "verifying" || !unik.trim()}
           >
             {status === "verifying" ? (
               <span className="flex items-center gap-2">
@@ -653,118 +663,42 @@ export default function PublicKatalogPage() {
 
         <style jsx>{`
           .modal-box {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255,255,255,0.95);
             backdrop-filter: blur(10px);
             width: 100%;
             max-width: 420px;
             padding: 40px;
             border-radius: 32px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            animation: modalFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.5);
+            animation: modalFadeIn 0.5s cubic-bezier(0.16,1,0.3,1);
           }
-          @keyframes modalFadeIn {
-            from { opacity: 0; transform: translateY(20px) scale(0.95); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          .modal-header { text-align: center; margin-bottom: 32px; }
-          .icon-badge {
-            width: 64px;
-            height: 64px;
-            background: #eff6ff;
-            color: #3b82f6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 20px;
-            margin: 0 auto 20px;
-            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
-          }
-          h2 { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 8px; letter-spacing: -0.025em; }
-          p { color: #64748b; font-size: 15px; }
-          
-          .modal-body { display: flex; flex-direction: column; gap: 20px; }
-          .input-field { position: relative; }
-          .input-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+          @keyframes modalFadeIn { from { opacity:0; transform:translateY(20px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
+          .modal-header { text-align:center; margin-bottom:32px; }
+          .icon-badge { width:64px; height:64px; background:#eff6ff; color:#3b82f6; display:flex; align-items:center; justify-content:center; border-radius:20px; margin:0 auto 20px; box-shadow:inset 0 0 0 1px rgba(59,130,246,0.1); }
+          h2 { font-size:26px; font-weight:800; color:#1e293b; margin-bottom:8px; letter-spacing:-0.025em; }
+          p { color:#64748b; font-size:15px; }
+          .modal-body { display:flex; flex-direction:column; gap:20px; }
+          .input-field { position:relative; }
+          .input-icon { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:#94a3b8; }
           input {
-            width: 100%;
-            background: #f8fafc;
-            border: 2px solid #e2e8f0;
-            padding: 16px 16px 16px 48px;
-            border-radius: 16px;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.2s;
-            color: #1e293b;
+            width:100%; background:#f8fafc; border:2px solid #e2e8f0;
+            padding:16px 16px 16px 48px; border-radius:16px;
+            font-size:16px; font-weight:600; transition:all 0.2s; color:#1e293b;
+            /* FIX: Prevent iOS zoom on focus (min font-size 16px already set) */
           }
-          input:focus {
-            background: white;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-            outline: none;
-          }
-          
-          .login-btn {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-            border: none;
-            padding: 16px;
-            border-radius: 16px;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-          }
-          .login-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.4);
-          }
-          .login-btn:active:not(:disabled) { transform: translateY(0); }
-          .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-          .error-alert {
-            padding: 14px;
-            background: #fef2f2;
-            border-radius: 12px;
-            color: #b91c1c;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid #fee2e2;
-          }
-          .warning-alert {
-            padding: 14px;
-            background: #fffbeb;
-            border-radius: 12px;
-            color: #92400e;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid #fef3c7;
-          }
-
-          .modal-footer { margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 24px; }
-          .modal-footer p { font-size: 14px; color: #64748b; margin: 0; }
-          .modal-footer a { color: #3b82f6; text-decoration: none; font-weight: 700; }
-          .modal-footer a:hover { text-decoration: underline; }
-
-          .spinner-small {
-            width: 18px;
-            height: 18px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-          }
-          @keyframes spin { to { transform: rotate(360deg); } }
+          input:focus { background:white; border-color:#3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,0.1); outline:none; }
+          .login-btn { background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; border:none; padding:16px; border-radius:16px; font-size:16px; font-weight:700; cursor:pointer; transition:all 0.3s; display:flex; align-items:center; justify-content:center; gap:10px; width:100%; }
+          .login-btn:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 10px 20px -5px rgba(59,130,246,0.4); }
+          .login-btn:disabled { opacity:0.6; cursor:not-allowed; }
+          .error-alert { padding:14px; background:#fef2f2; border-radius:12px; color:#b91c1c; font-size:14px; font-weight:600; display:flex; align-items:center; gap:10px; border:1px solid #fee2e2; }
+          .warning-alert { padding:14px; background:#fffbeb; border-radius:12px; color:#92400e; font-size:14px; font-weight:600; display:flex; align-items:center; gap:10px; border:1px solid #fef3c7; }
+          .modal-footer { margin-top:32px; text-align:center; border-top:1px solid #f1f5f9; padding-top:24px; }
+          .modal-footer p { font-size:14px; color:#64748b; margin:0; }
+          .modal-footer a { color:#3b82f6; text-decoration:none; font-weight:700; }
+          .modal-footer a:hover { text-decoration:underline; }
+          .spinner-small { width:18px; height:18px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.8s linear infinite; }
+          @keyframes spin { to { transform:rotate(360deg); } }
         `}</style>
       </div>
     );
@@ -775,7 +709,7 @@ export default function PublicKatalogPage() {
   return (
     <div className="container">
 
-      {/* HEADER: badge atas -> DATA PESERTA -> Selamat Datang, semua center */}
+      {/* HEADER */}
       <header className="page-header">
         <div className="badge-top">
           <Sparkles size={12} />
@@ -789,11 +723,7 @@ export default function PublicKatalogPage() {
             onClick={() => {
               setIsCommentsModalOpen(true);
               setHasNewComments(false);
-              if (currentUser?.id) {
-                fetchUserComments(currentUser.id);
-                // We'll update last seen in the fetch success or here after a small delay
-                // but for now, let's just make sure it's fresh
-              }
+              if (currentUser?.id) fetchUserComments(currentUser.id);
             }}
           >
             <MessageSquare size={20} />
@@ -808,6 +738,9 @@ export default function PublicKatalogPage() {
             <Search size={18} className="search-icon" />
             <input
               type="text"
+              inputMode="search"
+              autoCorrect="off"
+              autoComplete="off"
               placeholder="Cari nama, no. urut, kota, atau desa..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -829,66 +762,33 @@ export default function PublicKatalogPage() {
 
         <div className="filter-controls">
           <div className="toggle-group">
-            <button
-              className={category === "all" ? "active" : ""}
-              onClick={() => { setCategory("all"); setPage(1); }}
-            >
-              Semua
-            </button>
-            <button
-              className={category === "peserta" ? "active" : ""}
-              onClick={() => { setCategory("peserta"); setPage(1); }}
-            >
-              Peserta
-            </button>
-            <button
-              className={category === "panitia" ? "active" : ""}
-              onClick={() => { setCategory("panitia"); setPage(1); }}
-            >
-              Panitia
-            </button>
+            {(["all", "peserta", "panitia"] as const).map(cat => (
+              <button key={cat} className={category === cat ? "active" : ""} onClick={() => { setCategory(cat); setPage(1); }}>
+                {cat === "all" ? "Semua" : cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </button>
+            ))}
           </div>
 
-
           <div className="select-container">
-            <select
-              className="select-box"
-              value={pendidikan}
-              onChange={(e) => { setPendidikan(e.target.value); setPage(1); }}
-            >
+            <select className="select-box" value={pendidikan} onChange={(e) => { setPendidikan(e.target.value); setPage(1); }}>
               <option value="all">Semua Pendidikan</option>
-              {pendidikanList.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
+              {pendidikanList.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <ChevronDown size={14} className="select-arrow" />
           </div>
 
           <div className="select-container">
-            <select
-              className="select-box"
-              value={selectedKota}
-              onChange={(e) => { setSelectedKota(e.target.value); setDesaFilter("all"); setPage(1); }}
-            >
+            <select className="select-box" value={selectedKota} onChange={(e) => { setSelectedKota(e.target.value); setDesaFilter("all"); setPage(1); }}>
               <option value="all">Semua Daerah</option>
-              {kotaList.map(k => (
-                <option key={k} value={k}>{k}</option>
-              ))}
+              {kotaList.map(k => <option key={k} value={k}>{k}</option>)}
             </select>
             <ChevronDown size={14} className="select-arrow" />
           </div>
 
           <div className="select-container">
-            <select
-              className="select-box"
-              value={desaFilter}
-              onChange={(e) => { setDesaFilter(e.target.value); setPage(1); }}
-              disabled={selectedKota === "all"}
-            >
+            <select className="select-box" value={desaFilter} onChange={(e) => { setDesaFilter(e.target.value); setPage(1); }} disabled={selectedKota === "all"}>
               <option value="all">Semua Desa</option>
-              {wilayahList.filter(w => w.kota === selectedKota).map(w => (
-                <option key={w.id} value={w.id}>{w.nama}</option>
-              ))}
+              {wilayahList.filter(w => w.kota === selectedKota).map(w => <option key={w.id} value={w.id}>{w.nama}</option>)}
             </select>
             <ChevronDown size={14} className="select-arrow" />
           </div>
@@ -907,14 +807,10 @@ export default function PublicKatalogPage() {
 
       <div className="selection-banner">
         <div className="banner-left">
-          <div className="banner-icon">
-            <CheckCircle2 size={24} />
-          </div>
+          <div className="banner-icon"><CheckCircle2 size={24} /></div>
           <div className="banner-text">
             <span className="banner-label">PILIHAN SAYA</span>
-            <p className="banner-value">
-              {selectedNames.length > 0 ? selectedNames.join(", ") : "Pilih peserta favorit Anda (Maks. 3)"}
-            </p>
+            <p className="banner-value">{selectedNames.length > 0 ? selectedNames.join(", ") : "Pilih peserta favorit Anda (Maks. 3)"}</p>
           </div>
         </div>
         <div className="banner-right">
@@ -930,7 +826,6 @@ export default function PublicKatalogPage() {
             <span className="location">@{currentUser?.mandiriDesaKota} • {currentUser?.mandiriDesaNama}</span>
           )}
         </div>
-
         {statusQueue && (
           <div className="status-queue-banner">
             <Timer size={14} />
@@ -950,6 +845,7 @@ export default function PublicKatalogPage() {
                   src={item.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.nama)}&background=random`}
                   alt={item.nama}
                   className="card-image"
+                  loading="lazy"
                 />
                 <div className="floating-badge id-badge">#{item.nomorUrut || "-"}</div>
                 {item.selectedCount >= 5 && (
@@ -968,59 +864,29 @@ export default function PublicKatalogPage() {
                 </div>
 
                 <div className="card-stats-grid">
-                  <div className="stat-pill">
-                    <Calendar size={14} />
-                    <span>{item.tanggalLahir ? `${new Date().getFullYear() - new Date(item.tanggalLahir).getFullYear()} Tahun` : "-"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <GraduationCap size={14} />
-                    <span>{item.pendidikan || "-"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <Heart size={14} />
-                    <span>{item.statusNikah || "Belum Menikah"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <Briefcase size={14} />
-                    <span>{item.pekerjaan || "Swasta"}</span>
-                  </div>
-                  <div className="stat-pill">
-                    <Globe size={14} />
-                    <span>{item.suku || "-"}</span>
-                  </div>
+                  <div className="stat-pill"><Calendar size={14} /><span>{item.tanggalLahir ? `${new Date().getFullYear() - new Date(item.tanggalLahir).getFullYear()} Tahun` : "-"}</span></div>
+                  <div className="stat-pill"><GraduationCap size={14} /><span>{item.pendidikan || "-"}</span></div>
+                  <div className="stat-pill"><Heart size={14} /><span>{item.statusNikah || "Belum Menikah"}</span></div>
+                  <div className="stat-pill"><Briefcase size={14} /><span>{item.pekerjaan || "Swasta"}</span></div>
+                  <div className="stat-pill"><Globe size={14} /><span>{item.suku || "-"}</span></div>
                   <div className="stat-pill">
                     <Instagram size={14} />
                     {item.instagram ? (
-                      <a
-                        href={`https://instagram.com/${item.instagram.replace('@', '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="card-instagram-link"
-                      >
+                      <a href={`https://instagram.com/${item.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="card-instagram-link">
                         @{item.instagram.replace('@', '')}
                       </a>
-                    ) : (
-                      <span>-</span>
-                    )}
+                    ) : <span>-</span>}
                   </div>
-                  <div className="stat-pill selection-count">
-                    <UserCheck size={14} />
-                    <span>Dipilih: {item.selectedCount || 0}/5</span>
-                  </div>
+                  <div className="stat-pill selection-count"><UserCheck size={14} /><span>Dipilih: {item.selectedCount || 0}/5</span></div>
                 </div>
 
                 <div className="card-passions-mini">
-                  <div className="pass-pill"><Music size={12} /> <span>Hobi: {item.hobi || "-"}</span></div>
-                  <div className="pass-pill"><Utensils size={12} /> <span>Makan/Minuman: {item.makananMinumanFavorit || "-"}</span></div>
+                  <div className="pass-pill"><Music size={12} /><span>Hobi: {item.hobi || "-"}</span></div>
+                  <div className="pass-pill"><Utensils size={12} /><span>Makan/Minuman: {item.makananMinumanFavorit || "-"}</span></div>
                 </div>
 
                 <div className="card-actions">
-                  <button
-                    className="btn-secondary"
-                    onClick={() => openDetail(item)}
-                  >
-                    Detail Profil
-                  </button>
+                  <button className="btn-secondary" onClick={() => openDetail(item)}>Detail Profil</button>
                   {item.nomorUrut !== currentUser?.nomorUrut && (
                     <button
                       className={`btn-primary ${selectedIds.includes(String(item.id)) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(String(item.id))) || ((item.selectedCount || 0) >= 5 && !selectedIds.includes(String(item.id))) ? "disabled" : ""}`}
@@ -1044,12 +910,7 @@ export default function PublicKatalogPage() {
                       <>
                         <div className="commentary-header">
                           <div className="anon-toggle">
-                            <input
-                              type="checkbox"
-                              id={`anon-${item.id}`}
-                              checked={komentarAnon}
-                              onChange={(e) => setKomentarAnon(e.target.checked)}
-                            />
+                            <input type="checkbox" id={`anon-${item.id}`} checked={komentarAnon} onChange={(e) => setKomentarAnon(e.target.checked)} />
                             <label htmlFor={`anon-${item.id}`}>Anonim</label>
                           </div>
                           {!komentarAnon && (
@@ -1060,12 +921,11 @@ export default function PublicKatalogPage() {
                               value={komentarNama}
                               onChange={(e) => setKomentarNama(e.target.value)}
                               disabled={!!currentUser}
+                              autoComplete="off"
                             />
                           )}
                         </div>
-                        <div className="comment-tags-label">
-                          Berikan Komentar Singkat:
-                        </div>
+                        <div className="comment-tags-label">Berikan Komentar Singkat:</div>
                         <div className="comment-buttons">
                           {["Humble", "Baik", "Pendiam", "Penyabar", "Friendly"].map(tag => (
                             <button
@@ -1091,30 +951,20 @@ export default function PublicKatalogPage() {
       {/* DETAIL MODAL */}
       {isModalOpen && selectedParticipant && (
         <div className="modal-overlay" onClick={closeDetail}>
-          <div
-            className={`modal-container gender-${selectedParticipant.jenisKelamin?.toLowerCase()}`}
-            onClick={e => e.stopPropagation()}
-          >
-            <button className="modal-close" onClick={closeDetail}>
-              <X size={20} />
-            </button>
-
+          <div className={`modal-container gender-${selectedParticipant.jenisKelamin?.toLowerCase()}`} onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeDetail}><X size={20} /></button>
             <div className="modal-layout">
-              {/* LEFT SIDEBAR: PHOTO & ID */}
               <aside className="modal-sidebar">
                 <div className="modal-photo-wrapper">
-                  {selectedParticipant.foto ? (
-                    <img src={selectedParticipant.foto} alt={selectedParticipant.nama} />
-                  ) : (
-                    <div className="modal-initials-placeholder">{selectedParticipant.nama.charAt(0)}</div>
-                  )}
-                  {/* Photo badges if any */}
+                  {selectedParticipant.foto
+                    ? <img src={selectedParticipant.foto} alt={selectedParticipant.nama} loading="lazy" />
+                    : <div className="modal-initials-placeholder">{selectedParticipant.nama.charAt(0)}</div>
+                  }
                   <div className="photo-info-badges">
                     <span className="badge-item">📷 100%</span>
                     <span className="badge-item">👤</span>
                   </div>
                 </div>
-
                 <div className="modal-id-card">
                   <label>NOMOR PESERTA</label>
                   <div className="id-number">#{selectedParticipant.nomorUrut || selectedParticipant.nomorUnik || "-"}</div>
@@ -1122,7 +972,6 @@ export default function PublicKatalogPage() {
                 </div>
               </aside>
 
-              {/* RIGHT CONTENT: INFO SECTIONS */}
               <div className="modal-content-area">
                 <header className="modal-content-header">
                   <h2 className="modal-display-name">{selectedParticipant.nama}</h2>
@@ -1133,71 +982,35 @@ export default function PublicKatalogPage() {
                 </header>
 
                 <div className="modal-sections-list">
-                  {/* SECTION 1 */}
                   <div className="info-section">
                     <h3 className="section-label">INFORMASI PRIBADI</h3>
                     <div className="info-grid-2col">
-                      <div className="info-field">
-                        <label>TEMPAT, TGL LAHIR</label>
-                        <p>{selectedParticipant.tempatLahir || "-"}, {selectedParticipant.tanggalLahir || "-"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>UMUR (USIA)</label>
-                        <p>{selectedParticipant.tanggalLahir ? `${new Date().getFullYear() - new Date(selectedParticipant.tanggalLahir).getFullYear()} Tahun` : "-"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>JENIS KELAMIN</label>
-                        <p>{selectedParticipant.jenisKelamin === "L" ? "Laki-Laki" : "Perempuan"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>STATUS PERNIKAHAN</label>
-                        <p>{selectedParticipant.statusNikah || "Belum Menikah"}</p>
-                      </div>
+                      <div className="info-field"><label>TEMPAT, TGL LAHIR</label><p>{selectedParticipant.tempatLahir || "-"}, {selectedParticipant.tanggalLahir || "-"}</p></div>
+                      <div className="info-field"><label>UMUR (USIA)</label><p>{selectedParticipant.tanggalLahir ? `${new Date().getFullYear() - new Date(selectedParticipant.tanggalLahir).getFullYear()} Tahun` : "-"}</p></div>
+                      <div className="info-field"><label>JENIS KELAMIN</label><p>{selectedParticipant.jenisKelamin === "L" ? "Laki-Laki" : "Perempuan"}</p></div>
+                      <div className="info-field"><label>STATUS PERNIKAHAN</label><p>{selectedParticipant.statusNikah || "Belum Menikah"}</p></div>
                       <div className="info-field selection-info">
                         <label>TOTAL DIPILIH (AKTIF)</label>
-                        <p className="selection-value">
-                          <UserCheck size={16} className="inline-icon" />
-                          {selectedParticipant.selectedCount || 0} / 5 Peserta
-                        </p>
+                        <p className="selection-value"><UserCheck size={16} className="inline-icon" />{selectedParticipant.selectedCount || 0} / 5 Peserta</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* SECTION 2 */}
                   <div className="info-section">
                     <h3 className="section-label">LATAR BELAKANG</h3>
                     <div className="info-grid-2col">
-                      <div className="info-field">
-                        <label>PENDIDIKAN TERAKHIR</label>
-                        <p>{selectedParticipant.pendidikan || "-"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>PEKERJAAN / BIDANG</label>
-                        <p>{selectedParticipant.pekerjaan || "-"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>SUKU BANGSA</label>
-                        <p>{selectedParticipant.suku || "-"}</p>
-                      </div>
-                      <div className="info-field">
-                        <label>HOBI & PASSION</label>
-                        <p>{selectedParticipant.hobi || "-"}</p>
-                      </div>
+                      <div className="info-field"><label>PENDIDIKAN TERAKHIR</label><p>{selectedParticipant.pendidikan || "-"}</p></div>
+                      <div className="info-field"><label>PEKERJAAN / BIDANG</label><p>{selectedParticipant.pekerjaan || "-"}</p></div>
+                      <div className="info-field"><label>SUKU BANGSA</label><p>{selectedParticipant.suku || "-"}</p></div>
+                      <div className="info-field"><label>HOBI & PASSION</label><p>{selectedParticipant.hobi || "-"}</p></div>
                     </div>
                   </div>
 
-                  {/* SECTION 3 */}
                   <div className="info-section">
                     <h3 className="section-label">TENTANG SAYA</h3>
                     <div className="info-grid-1col">
-                      <div className="info-field full">
-                        <label>ALAMAT TINGGAL</label>
-                        <p>{selectedParticipant.alamat || "-"}</p>
-                      </div>
-                      <div className="info-field full">
-                        <label>MAKANAN & MINUMAN FAVORIT</label>
-                        <p>{selectedParticipant.makananMinumanFavorit || "-"}</p>
-                      </div>
+                      <div className="info-field full"><label>ALAMAT TINGGAL</label><p>{selectedParticipant.alamat || "-"}</p></div>
+                      <div className="info-field full"><label>MAKANAN & MINUMAN FAVORIT</label><p>{selectedParticipant.makananMinumanFavorit || "-"}</p></div>
                     </div>
                   </div>
                 </div>
@@ -1213,9 +1026,7 @@ export default function PublicKatalogPage() {
                       <span>{selectedIds.includes(String(selectedParticipant.id)) ? "Terpilih" : ((selectedParticipant.selectedCount || 0) >= 5 ? "Peserta Sudah Penuh (5/5)" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini"))}</span>
                     </button>
                   ) : (
-                    <button className="btn-action-main disabled" disabled>
-                      Ini Adalah Profil Anda
-                    </button>
+                    <button className="btn-action-main disabled" disabled>Ini Adalah Profil Anda</button>
                   )}
                 </div>
               </div>
@@ -1224,7 +1035,7 @@ export default function PublicKatalogPage() {
         </div>
       )}
 
-      {/* BOX LOVE FLOATING BUTTON */}
+      {/* BOX LOVE FAB */}
       {boxLoveStatus === "open" && (
         <button className="box-love-fab" onClick={openBoxLove} title="Box Love">
           <Heart size={24} fill="white" />
@@ -1236,7 +1047,6 @@ export default function PublicKatalogPage() {
       {isBoxLoveOpen && (
         <div className="bl-overlay" onClick={closeBoxLove}>
           <div className="bl-popup" onClick={e => e.stopPropagation()}>
-            {/* Header */}
             <div className="bl-header">
               <div className="bl-logo">
                 <div className="bl-logo-icon">💝</div>
@@ -1253,7 +1063,6 @@ export default function PublicKatalogPage() {
             </div>
 
             <div className="bl-body">
-              {/* My Info (auto-filled) */}
               <div className="bl-section">
                 <div className="bl-section-label">
                   <span>{currentUser?.jenisKelamin === "P" ? "👩" : "👨"}</span>
@@ -1273,7 +1082,6 @@ export default function PublicKatalogPage() {
 
               <div className="bl-heart-divider">💗</div>
 
-              {/* Search opposite gender */}
               <div className="bl-section">
                 <div className="bl-section-label">
                   <span>{currentUser?.jenisKelamin === "L" ? "👩" : "👨"}</span>
@@ -1282,6 +1090,9 @@ export default function PublicKatalogPage() {
                 <div className="bl-search-bar">
                   <input
                     type="text"
+                    inputMode="search"
+                    autoCorrect="off"
+                    autoComplete="off"
                     placeholder={`Nomor peserta (${currentUser?.jenisKelamin === "L" ? "200-299" : "1-199"})`}
                     value={boxLoveSearch}
                     onChange={e => searchBoxLove(e.target.value)}
@@ -1294,11 +1105,7 @@ export default function PublicKatalogPage() {
                 {boxLoveResults.length > 0 && (
                   <div className="bl-results">
                     {boxLoveResults.map(r => (
-                      <div
-                        key={r.id}
-                        className={`bl-result-item ${boxLoveTarget?.id === r.id ? "selected" : ""}`}
-                        onClick={() => setBoxLoveTarget(r)}
-                      >
+                      <div key={r.id} className={`bl-result-item ${boxLoveTarget?.id === r.id ? "selected" : ""}`} onClick={() => setBoxLoveTarget(r)}>
                         <div className="bl-result-avatar">
                           {r.foto ? <img src={r.foto} alt={r.nama} /> : <span>{r.nama?.charAt(0)}</span>}
                         </div>
@@ -1319,11 +1126,7 @@ export default function PublicKatalogPage() {
             </div>
 
             <div className="bl-footer">
-              <button
-                className="bl-submit-btn"
-                onClick={handleBoxLoveSubmit}
-                disabled={!boxLoveTarget || boxLoveSubmitting}
-              >
+              <button className="bl-submit-btn" onClick={handleBoxLoveSubmit} disabled={!boxLoveTarget || boxLoveSubmitting}>
                 <Heart size={18} fill="white" />
                 <span>{boxLoveSubmitting ? "Mengirim..." : "Masukkan Box Love 💌"}</span>
               </button>
@@ -1338,1491 +1141,69 @@ export default function PublicKatalogPage() {
           <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>Sebelumnya</button>
           <div className="page-numbers">
             {[...Array(Math.min(5, totalPages))].map((_, i) => (
-              <button
-                key={i}
-                className={page === i + 1 ? "active" : ""}
-                onClick={() => setPage(i + 1)}
-              >
-                {i + 1}
-              </button>
+              <button key={i} className={page === i + 1 ? "active" : ""} onClick={() => setPage(i + 1)}>{i + 1}</button>
             ))}
           </div>
           <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Berikutnya</button>
         </div>
       )}
 
-      <style jsx>{`
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 40px 20px;
-          font-family: 'Inter', sans-serif;
-          color: #334155;
-        }
-
-        /* ✅ Header — semua elemen rata tengah */
-        .page-header {
-          text-align: center;
-          margin-bottom: 40px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-        }
-        .badge-top {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #f1f5f9;
-          color: #3b82f6;
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.5px;
-        }
-        .page-header h1 {
-          font-size: 42px;
-          font-weight: 900;
-          letter-spacing: -1px;
-          margin: 0;
-          color: #1e293b;
-          line-height: 1.1;
-        }
-        .page-header h1 span {
-          color: #3b82f6;
-        }
-        .welcome-msg {
-          color: #64748b;
-          font-size: 16px;
-          margin: 0;
-        }
-
-        /* Toolbar */
-        .toolbar {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          background: white;
-          padding: 16px;
-          border-radius: 24px;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-          border: 1px solid #f1f5f9;
-          margin-bottom: 24px;
-        }
-        .search-group {
-          display: flex;
-          gap: 12px;
-        }
-        .search-bar {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          padding: 12px 20px;
-          border-radius: 16px;
-        }
-        .search-bar input {
-          border: none;
-          background: transparent;
-          outline: none;
-          width: 100%;
-          font-size: 14px;
-          font-weight: 500;
-        }
-        .search-icon { color: #94a3b8; }
-        .btn-advanced {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: white;
-          border: 1px solid #e2e8f0;
-          padding: 0 20px;
-          border-radius: 16px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .btn-advanced:hover { background: #f8fafc; }
-        .filter-controls {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .toggle-group {
-          display: flex;
-          background: #f1f5f9;
-          padding: 4px;
-          border-radius: 14px;
-        }
-        .toggle-group button {
-          border: none;
-          background: transparent;
-          padding: 8px 18px;
-          border-radius: 10px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #64748b;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .toggle-group button.active {
-          background: #1e293b;
-          color: white;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .select-container {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-        .select-box {
-          appearance: none;
-          background: white;
-          border: 1px solid #e2e8f0;
-          padding: 10px 35px 10px 18px;
-          border-radius: 14px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          outline: none;
-          min-width: 160px;
-          color: #1e293b;
-          transition: 0.2s;
-        }
-        .select-box:hover {
-          border-color: #cbd5e1;
-        }
-        .select-box:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        .select-arrow {
-          position: absolute;
-          right: 14px;
-          pointer-events: none;
-          color: #94a3b8;
-        }
-        .status-badge {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          padding: 10px 18px;
-          border-radius: 14px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #475569;
-        }
-        .btn-logout {
-          margin-left: auto;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #fef2f2;
-          color: #ef4444;
-          border: 1px solid #fee2e2;
-          padding: 10px 18px;
-          border-radius: 14px;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .btn-logout:hover { background: #fee2e2; }
-
-        /* Selection Banner */
-        .selection-banner {
-          background: #232d3f;
-          padding: 24px 32px;
-          border-radius: 28px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          color: white;
-          margin-bottom: 32px;
-          box-shadow: 0 15px 30px rgba(35, 45, 63, 0.2);
-        }
-        .banner-left {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-        }
-        .banner-icon {
-          background: rgba(255,255,255,0.1);
-          padding: 14px;
-          border-radius: 18px;
-          color: #60a5fa;
-        }
-        .banner-text {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .banner-label {
-          font-size: 11px;
-          font-weight: 800;
-          color: #94a3b8;
-          letter-spacing: 1.5px;
-        }
-        .banner-value {
-          font-size: 19px;
-          font-weight: 800;
-          color: #ffffff;
-          margin: 0;
-        }
-        .pilihan-pill {
-          background: #3b82f6;
-          color: white;
-          padding: 8px 16px;
-          border-radius: 20px;
-          font-size: 13px;
-          font-weight: 800;
-          transition: 0.3s;
-        }
-        .pilihan-pill.full {
-          background: #10b981;
-          box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
-        }
-
-        /* Context Title */
-        .user-title-context {
-          margin-bottom: 32px;
-        }
-        .user-title-context h3 {
-          font-size: 22px;
-          font-weight: 800;
-          margin: 0 0 6px 0;
-          color: #1e293b;
-        }
-        .user-meta {
-          display: flex;
-          justify-content: space-between;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        /* Grid */
-        .grid-container {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-          gap: 24px;
-        }
-
-        /* Card */
-        .participant-card {
-          background: white;
-          border-radius: 32px;
-          border: 1px solid #f1f5f9;
-          overflow: hidden;
-          transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 20px rgba(0,0,0,0.02);
-        }
-        .participant-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-          border-color: #3b82f644;
-        }
-        .card-image-wrapper {
-          height: 380px;
-          position: relative;
-          overflow: hidden;
-        }
-        .card-image {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transition: 0.5s;
-        }
-        .participant-card:hover .card-image {
-          transform: scale(1.05);
-        }
-        .floating-badge {
-          position: absolute;
-          padding: 6px 12px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 800;
-          backdrop-filter: blur(8px);
-        }
-        .id-badge {
-          top: 16px;
-          left: 16px;
-          background: #3b82f6;
-          color: white;
-        }
-        .full-badge {
-          top: 16px;
-          right: 16px;
-          background: #ef4444;
-          color: white;
-          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-          animation: pulse-red 2s infinite;
-        }
-        @keyframes pulse-red {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-          100% { transform: scale(1); }
-        }
-        .label-badge {
-          bottom: 16px;
-          right: 16px;
-          background: rgba(255,255,255,0.9);
-          color: #334155;
-        }
-        .label-badge.status-panitia {
-          background: #1e293b;
-          color: white;
-        }
-        .card-content {
-          padding: 24px;
-        }
-        .card-name {
-          font-size: 20px;
-          font-weight: 800;
-          color: #1e293b;
-          margin: 0 0 6px 0;
-        }
-        .card-location {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: #64748b;
-          font-size: 13px;
-          font-weight: 600;
-          margin-bottom: 20px;
-        }
-        .card-stats-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-        .card-passions-mini {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          margin-bottom: 24px;
-          padding: 12px;
-          background: #f8fafc;
-          border-radius: 12px;
-        }
-        .pass-pill {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 11px;
-          font-weight: 600;
-          color: #475569;
-        }
-        .pass-pill svg { color: #3b82f6; opacity: 0.8; }
-        .stat-pill {
-          background: #f8fafc;
-          padding: 10px 14px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #475569;
-        }
-        .stat-pill svg { color: #3b82f6; opacity: 0.8; }
-        .stat-pill.selection-count {
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #dbeafe;
-        }
-        .stat-pill.selection-count svg {
-          color: #2563eb;
-        }
-        .card-instagram-link { color: inherit; text-decoration: none; }
-        .card-instagram-link:hover { color: #ec4899; text-decoration: underline; }
-        .card-actions {
-          display: flex;
-          gap: 12px;
-        }
-        .btn-secondary {
-          flex: 1;
-          background: white;
-          border: 1px solid #e2e8f0;
-          color: #334155;
-          padding: 12px;
-          border-radius: 14px;
-          font-size: 13px;
-          font-weight: 700;
-          text-align: center;
-          text-decoration: none;
-          transition: 0.2s;
-        }
-        .btn-secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
-        .btn-primary {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          padding: 12px;
-          border-radius: 14px;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .btn-primary:hover { background: #2563eb; transform: translateY(-2px); }
-        .btn-primary.selected { background: #10b981; }
-        .btn-primary.disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border: 1px solid #e2e8f0; }
-        .btn-primary.disabled:hover { transform: none; background: #f1f5f9; }
-
-        /* Pagination */
-        .pagination {
-          margin-top: 48px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 24px;
-        }
-        .pagination button {
-          background: white;
-          border: 1px solid #e2e8f0;
-          padding: 10px 20px;
-          border-radius: 12px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .page-numbers { display: flex; gap: 8px; }
-        .page-numbers button { width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; }
-        .page-numbers button.active { background: #1e293b; color: white; border-color: #1e293b; }
-
-        /* Skeletons */
-        .skeleton-card {
-          height: 600px;
-          background: #f1f5f9;
-          border-radius: 32px;
-          animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-        @media (max-width: 768px) {
-          .toolbar { border-radius: 0; }
-          .grid-container { grid-template-columns: 1fr; }
-          .btn-logout { margin-left: 0; width: 100%; justify-content: center; }
-          .search-group { flex-direction: column; }
-        }
-
-        /* ✅ MODAL STYLES */
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(15, 23, 42, 0.75);
-          backdrop-filter: blur(8px);
-          z-index: 1000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          animation: fadeIn 0.3s ease-out;
-        }
-
-        .modal-container {
-          background: #f8fafc;
-          width: 100%;
-          max-width: 1000px;
-          max-height: 95vh;
-          border-radius: 32px;
-          overflow: hidden;
-          position: relative;
-          box-shadow: 0 50px 100px -20px rgba(0,0,0,0.25);
-          animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .modal-close {
-          position: absolute;
-          top: 24px;
-          right: 24px;
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          background: white;
-          border: 1px solid #e2e8f0;
-          color: #64748b;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          z-index: 100;
-          transition: 0.2s;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .modal-close:hover { background: #f1f5f9; color: #1e293b; transform: scale(1.1); }
-
-        .modal-layout {
-          display: flex;
-          height: 95vh;
-          background: white;
-        }
-
-        .selection-info {
-          background: #eff6ff;
-          padding: 12px;
-          border-radius: 12px;
-          border: 1px solid #dbeafe;
-        }
-        .selection-value {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 800 !important;
-          color: #1d4ed8 !important;
-          margin-top: 4px;
-        }
-        .inline-icon {
-          color: #2563eb;
-        }
-
-        /* Sidebar */
-        .modal-sidebar {
-          width: 340px;
-          background: #f8fafc;
-          border-right: 1px solid #e2e8f0;
-          display: flex;
-          flex-direction: column;
-          padding: 32px;
-          overflow-y: auto;
-        }
-
-        .modal-photo-wrapper {
-          position: relative;
-          width: 100%;
-          aspect-ratio: 3/4.5;
-          border-radius: 24px;
-          overflow: hidden;
-          background: white;
-          border: 1px solid #e2e8f0;
-          margin-bottom: 32px;
-        }
-        .modal-photo-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-        .modal-initials-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #94a3b8; font-size: 64px; font-weight: 800; }
-        
-        .photo-info-badges {
-          position: absolute;
-          bottom: 16px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 8px;
-          background: rgba(255,255,255,0.9);
-          backdrop-filter: blur(4px);
-          padding: 6px 14px;
-          border-radius: 100px;
-          border: 1px solid rgba(0,0,0,0.05);
-        }
-        .badge-item { font-size: 10px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 4px; }
-
-        .modal-id-card {
-          text-align: center;
-          padding-top: 10px;
-        }
-        .modal-id-card label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; letter-spacing: 1.5px; margin-bottom: 4px; }
-        .id-number { font-size: 42px; font-weight: 950; color: #3b82f6; margin-bottom: 2px; line-height: 1; }
-        .id-footer { font-size: 11px; font-weight: 900; color: #3b82f6; letter-spacing: 0.5px; }
-
-        /* Content Area */
-        .modal-content-area {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          background: white;
-          overflow-y: auto;
-        }
-
-        .modal-content-header {
-          padding: 40px 48px 24px;
-        }
-        .modal-display-name { font-size: 36px; font-weight: 900; color: #1e293b; margin: 0 0 6px 0; letter-spacing: -0.5px; }
-        .modal-display-loc { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 14px; font-weight: 600; }
-        .modal-display-loc span { opacity: 0.8; }
-
-        .modal-sections-list {
-          flex: 1;
-          padding: 0 48px 40px;
-        }
-
-        .info-section {
-          margin-bottom: 40px;
-          position: relative;
-        }
-        .info-section::before {
-          content: '';
-          display: block;
-          height: 1px;
-          background: #f1f5f9;
-          margin-bottom: 24px;
-        }
-        .section-label { font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 1px; margin-bottom: 24px; }
-
-        .info-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-        .info-grid-1col { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        
-        .info-field label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 8px; }
-        .info-field p { font-size: 15px; font-weight: 700; color: #334155; margin: 0; }
-        
-
-        .modal-cta-area {
-          padding: 32px 48px;
-          background: #ffffff;
-          border-top: 1px solid #f1f5f9;
-          position: sticky;
-          bottom: 0;
-        }
-
-        .btn-action-main {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          padding: 18px;
-          border-radius: 20px;
-          font-size: 16px;
-          font-weight: 800;
-          cursor: pointer;
-          transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .btn-action-main:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2); }
-        .btn-action-main.selected { background: #10b981; }
-        .btn-action-main.selected:hover { box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); }
-        .btn-action-main.disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { transform: translateY(40px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
-
-        @media (max-width: 900px) {
-          .modal-layout { flex-direction: column; overflow-y: auto; height: auto; }
-          .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #e2e8f0; height: auto; }
-          .modal-photo-wrapper { max-width: 300px; margin: 0 auto 32px; }
-          .modal-content-area { overflow-y: visible; }
-        }
-
-        @media (max-width: 640px) {
-          .modal-container { max-height: 100vh; border-radius: 0; }
-          .modal-content-header { padding: 32px 24px 16px; }
-          .modal-sections-list { padding: 0 24px 32px; }
-          .modal-cta-area { padding: 24px; }
-          .info-grid-2col { grid-template-columns: 1fr; }
-        }
-
-
-          .status-queue-banner {
-            margin-top: 10px;
-            background: #fff1f2;
-            color: #f43f5e;
-            padding: 8px 16px;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            border: 1px dashed #fecdd3;
-            animation: pulse-border 2s infinite;
-          }
-          @keyframes pulse-border {
-            0% { border-color: #fecdd3; }
-            50% { border-color: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.1); }
-            100% { border-color: #fecdd3; }
-          }
-
-        /* ================================
-           BOX LOVE STYLES
-           ================================ */
-        .box-love-fab {
-          position: fixed;
-          bottom: 32px;
-          right: 32px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: linear-gradient(135deg, #f472b6, #ec4899, #be185d);
-          color: white;
-          border: none;
-          padding: 14px 22px;
-          border-radius: 50px;
-          font-size: 14px;
-          font-weight: 800;
-          cursor: pointer;
-          z-index: 100;
-          box-shadow: 0 8px 24px rgba(236, 72, 153, 0.4);
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          animation: fabPulse 2.5s ease-in-out infinite;
-        }
-        .box-love-fab:hover {
-          transform: translateY(-4px) scale(1.04);
-          box-shadow: 0 16px 32px rgba(236, 72, 153, 0.5);
-        }
-        @keyframes fabPulse {
-          0%, 100% { box-shadow: 0 8px 24px rgba(236, 72, 153, 0.4); }
-          50% { box-shadow: 0 8px 32px rgba(236, 72, 153, 0.7); }
-        }
-
-        /* Overlay */
-        .bl-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(15, 23, 42, 0.55);
-          backdrop-filter: blur(12px);
-          z-index: 900;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          animation: fadeIn 0.2s ease;
-        }
-
-        /* Popup */
-        .bl-popup {
-          background: white;
-          border-radius: 32px;
-          width: 100%;
-          max-width: 480px;
-          max-height: 90vh;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 40px 80px rgba(0,0,0,0.2);
-          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        /* Popup Header */
-        .bl-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 28px 28px 20px;
-        }
-        .bl-logo {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-        .bl-logo-icon {
-          font-size: 44px;
-          line-height: 1;
-          filter: drop-shadow(0 4px 8px rgba(236, 72, 153, 0.3));
-        }
-        .bl-title {
-          font-size: 26px;
-          font-weight: 900;
-          margin: 0;
-          color: #1e293b;
-          letter-spacing: -0.5px;
-        }
-        .bl-subtitle {
-          font-size: 13px;
-          color: #64748b;
-          margin: 0;
-          font-weight: 500;
-        }
-        .bl-close {
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: none;
-          background: #f1f5f9;
-          border-radius: 50%;
-          cursor: pointer;
-          color: #64748b;
-          transition: 0.2s;
-          flex-shrink: 0;
-        }
-        .bl-close:hover { background: #e2e8f0; }
-
-        /* Notice */
-        .bl-notice {
-          margin: 0 28px 16px;
-          background: #fff0f6;
-          border: 1px solid #fce7f3;
-          border-radius: 12px;
-          padding: 10px 16px;
-          font-size: 13px;
-          color: #be185d;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        /* Body */
-        .bl-body {
-          padding: 0 28px;
-          flex: 1;
-        }
-
-        /* Section */
-        .bl-section {
-          margin-bottom: 20px;
-        }
-        .bl-section-label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          font-weight: 800;
-          color: #475569;
-          margin-bottom: 10px;
-        }
-
-        /* My info card */
-        .bl-my-info {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          background: #f0fdf4;
-          border: 1.5px solid #bbf7d0;
-          border-radius: 16px;
-          padding: 14px 18px;
-          position: relative;
-        }
-        .bl-my-avatar {
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          overflow: hidden;
-          background: #e0e7ff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          font-weight: 900;
-          color: #4f46e5;
-          flex-shrink: 0;
-        }
-        .bl-my-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .bl-my-name {
-          font-size: 15px;
-          font-weight: 800;
-          color: #1e293b;
-        }
-        .bl-my-loc {
-          font-size: 12px;
-          color: #64748b;
-          font-weight: 600;
-          margin-top: 2px;
-        }
-        .bl-check {
-          margin-left: auto;
-          color: #16a34a;
-          flex-shrink: 0;
-        }
-
-        /* Heart divider */
-        .bl-heart-divider {
-          text-align: center;
-          font-size: 24px;
-          margin: 4px 0 16px;
-          animation: heartBeat 1.5s ease-in-out infinite;
-        }
-        @keyframes heartBeat {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.2); }
-        }
-
-        /* Search bar */
-        .bl-search-bar {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-        .bl-search-bar input {
-          width: 100%;
-          border: 2px solid #e2e8f0;
-          background: #f8fafc;
-          padding: 13px 44px 13px 18px;
-          border-radius: 14px;
-          font-size: 14px;
-          font-weight: 600;
-          outline: none;
-          transition: 0.2s;
-          color: #1e293b;
-        }
-        .bl-search-bar input:focus {
-          border-color: #f472b6;
-          background: white;
-          box-shadow: 0 0 0 4px rgba(244, 114, 182, 0.12);
-        }
-        .bl-search-icon {
-          position: absolute;
-          right: 14px;
-          color: #94a3b8;
-          pointer-events: none;
-        }
-
-        /* Results */
-        .bl-results {
-          margin-top: 10px;
-          border: 1.5px solid #fce7f3;
-          border-radius: 16px;
-          overflow: hidden;
-          max-height: 220px;
-          overflow-y: auto;
-        }
-        .bl-result-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          cursor: pointer;
-          transition: 0.15s;
-          border-bottom: 1px solid #fff0f6;
-        }
-        .bl-result-item:last-child { border-bottom: none; }
-        .bl-result-item:hover { background: #fff0f6; }
-        .bl-result-item.selected { background: #fdf2f8; }
-        .bl-result-avatar {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          overflow: hidden;
-          background: #fce7f3;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          font-weight: 900;
-          color: #be185d;
-          flex-shrink: 0;
-        }
-        .bl-result-avatar img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .bl-result-name {
-          font-size: 14px;
-          font-weight: 800;
-          color: #1e293b;
-        }
-        .bl-result-loc {
-          font-size: 11px;
-          color: #64748b;
-          font-weight: 600;
-          margin-top: 2px;
-        }
-        .bl-loading {
-          text-align: center;
-          padding: 12px;
-          color: #94a3b8;
-          font-size: 13px;
-          font-weight: 600;
-        }
-        .bl-empty {
-          text-align: center;
-          padding: 14px;
-          color: #94a3b8;
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        /* Footer */
-        .bl-footer {
-          padding: 20px 28px 28px;
-        }
-        .bl-submit-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          background: linear-gradient(135deg, #f472b6, #ec4899, #be185d);
-          color: white;
-          border: none;
-          padding: 16px;
-          border-radius: 18px;
-          font-size: 16px;
-          font-weight: 800;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          box-shadow: 0 6px 20px rgba(236, 72, 153, 0.3);
-        }
-        .bl-submit-btn:not(:disabled):hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 28px rgba(236, 72, 153, 0.45);
-        }
-        .bl-submit-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          background: #e2e8f0;
-          color: #94a3b8;
-          box-shadow: none;
-        }
-        .bl-footer-note {
-          text-align: center;
-          font-size: 12px;
-          color: #94a3b8;
-          font-weight: 500;
-          margin: 12px 0 0;
-          line-height: 1.5;
-        }
-
-        @media (max-width: 480px) {
-          .bl-popup { border-radius: 24px 24px 0 0; margin-top: auto; }
-          .bl-overlay { align-items: flex-end; padding: 0; }
-          .box-love-fab { bottom: 20px; right: 20px; }
-        }
-
-        /* ✅ Commentary Box Styles */
-        .commentary-box {
-          margin-top: 20px;
-          padding-top: 16px;
-          border-top: 1px dashed #e2e8f0;
-        }
-        .commentary-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-        .anon-toggle {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          font-weight: 700;
-          color: #64748b;
-          cursor: pointer;
-        }
-        .anon-toggle input {
-          width: 14px;
-          height: 14px;
-          cursor: pointer;
-        }
-        .comment-name-input {
-          flex: 1;
-          border: 1px solid #e2e8f0;
-          background: #f8fafc;
-          padding: 6px 12px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          outline: none;
-        }
-        .comment-name-input:focus {
-          border-color: #3b82f6;
-          background: white;
-        }
-        .comment-tags-label {
-          font-size: 10px;
-          font-weight: 800;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 8px;
-        }
-        .comment-buttons {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .btn-tag {
-          background: white;
-          border: 1px solid #e2e8f0;
-          padding: 6px 12px;
-          border-radius: 100px;
-          font-size: 11px;
-          font-weight: 700;
-          color: #475569;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-tag:hover {
-          background: #eff6ff;
-          border-color: #3b82f6;
-          color: #3b82f6;
-          transform: translateY(-1px);
-        }
-        .btn-tag:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          transform: none;
-        }
-        .btn-tag.loading {
-          opacity: 0.7;
-          position: relative;
-        }
-        
-        /* Notification Styles */
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          justify-content: center;
-          margin-top: 8px;
-        }
-        .btn-notification {
-          background: white;
-          border: 1px solid #e2e8f0;
-          width: 44px;
-          height: 44px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          position: relative;
-          transition: all 0.2s;
-          color: #64748b;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .btn-notification:hover {
-          background: #f8fafc;
-          border-color: #3b82f6;
-          color: #3b82f6;
-          transform: translateY(-2px);
-        }
-        .btn-notification.has-new {
-          border-color: #3b82f6;
-          color: #3b82f6;
-          animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse-ring {
-          0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-          70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
-        .notification-dot {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          width: 10px;
-          height: 10px;
-          background: #ef4444;
-          border-radius: 50%;
-          border: 2px solid white;
-        }
-
-        /* ✅ Sent Comment Indicators */
-        .comment-sent-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #fef2f2;
-          color: #ef4444;
-          padding: 12px 16px;
-          border-radius: 12px;
-          font-size: 13px;
-          font-weight: 700;
-          border: 1px solid #fee2e2;
-          animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-
-        .tab-title {
-          font-size: 14px;
-          font-weight: 800;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          margin-bottom: 16px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .tab-title.sent { color: #ef4444; }
-        .tab-title.sent::before {
-          content: '';
-          width: 8px;
-          height: 8px;
-          background: #ef4444;
-          border-radius: 50%;
-        }
-
-        .comment-bubble.sent-red {
-          background: linear-gradient(135deg, #fff5f5, #fffcfc);
-          border-color: #fecdd3;
-          box-shadow: 0 10px 25px rgba(239, 68, 68, 0.05);
-        }
-        .sent-indicator {
-          font-size: 10px;
-          font-weight: 950;
-          color: #ef4444;
-          margin-bottom: 8px;
-          letter-spacing: 0.5px;
-        }
-        .comment-date.red {
-          background: #fef2f2;
-          color: #ef4444;
-        }
-        .spacer-modal {
-          height: 48px;
-          border-bottom: 2px dashed #f1f5f9;
-          margin-bottom: 32px;
-        }
-        .no-comments.mini {
-          padding: 30px;
-          font-size: 13px;
-        }
-
-
-        .comments-modal-box { 
-          background: white;
-          border-radius: 32px;
-          padding: 40px;
-          max-width: 500px; 
-          width: 95%; 
-          max-height: 85vh; 
-          overflow-y: auto; 
-          position: relative; 
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }
-        .comments-modal-box .modal-header {
-          text-align: center;
-          margin-bottom: 32px;
-        }
-        .comments-modal-box .icon-badge {
-          width: 64px;
-          height: 64px;
-          background: #eff6ff;
-          color: #3b82f6;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 20px;
-          margin: 0 auto 20px;
-          box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
-        }
-        .comments-modal-box h2 {
-          font-size: 26px;
-          font-weight: 800;
-          color: #1e293b;
-          margin-bottom: 8px;
-          letter-spacing: -0.025em;
-        }
-        .comments-modal-box p {
-          color: #64748b;
-          font-size: 15px;
-        }
-        .modal-close-btn { 
-          position: absolute; 
-          top: 20px; 
-          right: 20px; 
-          background: none; 
-          border: none; 
-          cursor: pointer; 
-          color: #64748b; 
-          padding: 8px; 
-          border-radius: 50%; 
-          transition: all 0.2s; 
-        }
-        .modal-close-btn:hover { 
-          background: #f1f5f9; 
-          color: #1e293b; 
-        }
-        .comments-list { 
-          display: flex; 
-          flex-direction: column; 
-          gap: 16px; 
-          padding: 10px 0; 
-        }
-        .comment-item { 
-          animation: slideUp 0.3s ease-out; 
-        }
-        @keyframes slideUp { 
-          from { opacity: 0; transform: translateY(10px); } 
-          to { opacity: 1; transform: translateY(0); } 
-        }
-        .comment-bubble { 
-          background: linear-gradient(135deg, #ffffff, #f0f7ff); 
-          padding: 24px; 
-          border-radius: 28px; 
-          border-bottom-left-radius: 4px; 
-          border: 1px solid #e2e8f0; 
-          position: relative; 
-          box-shadow: 0 10px 25px rgba(59, 130, 246, 0.05); 
-          transition: 0.3s;
-        }
-        .comment-bubble:hover {
-          transform: scale(1.02);
-          box-shadow: 0 15px 35px rgba(59, 130, 246, 0.1);
-          border-color: #3b82f6;
-        }
-        .comment-icon {
-          position: absolute;
-          top: -12px;
-          left: 20px;
-          background: white;
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-          border: 1px solid #e2e8f0;
-        }
-        .comment-text { 
-          font-size: 22px; 
-          font-weight: 800; 
-          margin-bottom: 20px; 
-          font-style: italic; 
-          line-height: 1.4; 
-          background: linear-gradient(135deg, #1e293b, #3b82f6);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          letter-spacing: -0.01em;
-        }
-        .comment-meta { 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: center; 
-          font-size: 13px; 
-          color: #64748b; 
-          font-weight: 700; 
-          border-top: 1px solid #f1f5f9; 
-          padding-top: 16px; 
-        }
-        .author-info {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .author-label {
-          color: #94a3b8;
-          font-weight: 600;
-          text-transform: uppercase;
-          font-size: 10px;
-          letter-spacing: 0.5px;
-        }
-        .comment-author { 
-          color: #1e293b; 
-          font-weight: 800;
-          background: #f1f5f9;
-          padding: 4px 10px;
-          border-radius: 8px;
-        }
-        .comment-date {
-          font-size: 11px;
-          background: #eff6ff;
-          color: #3b82f6;
-          padding: 4px 10px;
-          border-radius: 8px;
-        }
-        .no-comments { 
-          text-align: center; 
-          padding: 80px 20px; 
-          color: #94a3b8; 
-          display: flex; 
-          flex-direction: column; 
-          align-items: center; 
-          background: #f8fafc;
-          border-radius: 32px;
-          border: 2px dashed #e2e8f0;
-        }
-
-        /* SweetAlert2 Z-Index Override */
-        :global(.swal2-container) {
-          z-index: 10000 !important;
-        }
-      `}</style>
-
       {/* COMMENTS MODAL */}
       {isCommentsModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsCommentsModalOpen(false)}>
+        <div className="modal-overlay" onClick={() => { setIsCommentsModalOpen(false); unlockBodyScroll(); }}>
           <div className="modal-box comments-modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="icon-badge">
-                <MessageSquare size={28} className="text-blue-500" />
-              </div>
+              <div className="icon-badge"><MessageSquare size={28} className="text-blue-500" /></div>
               <h2>Pusat Komentar</h2>
               <p>Kelola komentar masuk dan pantau jejak Anda</p>
-              <button className="modal-close-btn" onClick={() => setIsCommentsModalOpen(false)}>
-                <X size={24} />
-              </button>
+              <button className="modal-close-btn" onClick={() => { setIsCommentsModalOpen(false); unlockBodyScroll(); }}><X size={24} /></button>
             </div>
 
             <div className="modal-body">
-              {/* Sent Comments Section (Jejak/Histori) */}
               <div className="comment-section-tabs">
                 <h3 className="tab-title sent">Jejak Komentar Saya</h3>
                 <div className="comments-list sent">
-                  {sentComments.length > 0 ? (
-                    sentComments.map((c) => (
-                      <div key={c.id} className="comment-item sent">
-                        <div className="comment-bubble sent-red">
-                          <div className="sent-indicator">🚩 JEJAK TERKIRIM</div>
-                          <p className="comment-text">"{c.komentar}"</p>
-                          <div className="comment-meta">
-                            <div className="author-info">
-                              <span className="author-label text-red-500">Untuk:</span>
-                              <span className="comment-author">#{c.penerimaNoUrut} {c.penerimaNama}</span>
-                            </div>
-                            <span className="comment-date red">{new Date(c.createdAt).toLocaleDateString()}</span>
+                  {sentComments.length > 0 ? sentComments.map((c) => (
+                    <div key={c.id} className="comment-item sent">
+                      <div className="comment-bubble sent-red">
+                        <div className="sent-indicator">🚩 JEJAK TERKIRIM</div>
+                        <p className="comment-text">"{c.komentar}"</p>
+                        <div className="comment-meta">
+                          <div className="author-info">
+                            <span className="author-label text-red-500">Untuk:</span>
+                            <span className="comment-author">#{c.penerimaNoUrut} {c.penerimaNama}</span>
                           </div>
+                          <span className="comment-date red">{new Date(c.createdAt).toLocaleDateString()}</span>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="no-comments mini">
-                      <p>Anda belum mengirimkan komentar.</p>
                     </div>
-                  )}
+                  )) : <div className="no-comments mini"><p>Anda belum mengirimkan komentar.</p></div>}
                 </div>
               </div>
 
               <div className="spacer-modal" />
 
-              {/* Received Comments Section */}
               <div className="comment-section-tabs">
                 <h3 className="tab-title">Komentar Untuk Anda</h3>
                 <div className="comments-list">
-                  {userComments.length > 0 ? (
-                    userComments.map((c) => (
-                      <div key={c.id} className="comment-item">
-                        <div className="comment-bubble">
-                          <div className="comment-icon">
-                            <MessageSquare size={16} fill="#3b82f6" color="#3b82f6" />
-                          </div>
-                          <p className="comment-text">"{c.komentar}"</p>
-                          <div className="comment-meta">
-                            <div className="author-info">
-                              <span className="author-label">Dari:</span>
-                              <span className="comment-author">
-                                {c.isAnonim ? "Anonim" : (c.realPengirimNama || c.pengirimNama || "Seseorang")}
-                                {c.realPengirimNoUrut && !c.isAnonim && ` (#${c.realPengirimNoUrut})`}
-                              </span>
-                            </div>
-                            <span className="comment-date">
-                              {new Date(c.createdAt).toLocaleDateString('id-ID', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+                  {userComments.length > 0 ? userComments.map((c) => (
+                    <div key={c.id} className="comment-item">
+                      <div className="comment-bubble">
+                        <div className="comment-icon"><MessageSquare size={16} fill="#3b82f6" color="#3b82f6" /></div>
+                        <p className="comment-text">"{c.komentar}"</p>
+                        <div className="comment-meta">
+                          <div className="author-info">
+                            <span className="author-label">Dari:</span>
+                            <span className="comment-author">
+                              {c.isAnonim ? "Anonim" : (c.realPengirimNama || c.pengirimNama || "Seseorang")}
+                              {c.realPengirimNoUrut && !c.isAnonim && ` (#${c.realPengirimNoUrut})`}
                             </span>
                           </div>
+                          <span className="comment-date">{new Date(c.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                    ))
-                  ) : (
+                    </div>
+                  )) : (
                     <div className="no-comments">
                       <Heart size={48} style={{ marginBottom: "16px", color: "#e2e8f0" }} />
                       <p>Belum ada komentar untuk Anda.</p>
@@ -2834,6 +1215,313 @@ export default function PublicKatalogPage() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        /* FIX: iOS Safari body scroll lock — CSS class approach is more reliable
+           than direct style manipulation which can fail on WebKit */
+        body.overflow-locked {
+          overflow: hidden;
+          /* iOS Safari specific: prevent bounce scroll behind modal */
+          position: fixed;
+          width: 100%;
+        }
+      `}</style>
+
+      <style jsx>{`
+        .container { max-width:1200px; margin:0 auto; padding:40px 20px; font-family:'Inter',sans-serif; color:#334155; }
+
+        .page-header { text-align:center; margin-bottom:40px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .badge-top { display:inline-flex; align-items:center; gap:6px; background:#f1f5f9; color:#3b82f6; padding:6px 14px; border-radius:20px; font-size:11px; font-weight:800; letter-spacing:0.5px; }
+        .page-header h1 { font-size:42px; font-weight:900; letter-spacing:-1px; margin:0; color:#1e293b; line-height:1.1; }
+        .page-header h1 span { color:#3b82f6; }
+        .welcome-msg { color:#64748b; font-size:16px; margin:0; }
+
+        .toolbar { display:flex; flex-direction:column; gap:16px; background:white; padding:16px; border-radius:24px; box-shadow:0 4px 15px rgba(0,0,0,0.03); border:1px solid #f1f5f9; margin-bottom:24px; }
+        .search-group { display:flex; gap:12px; }
+        .search-bar { flex:1; display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 20px; border-radius:16px; }
+        .search-bar input { border:none; background:transparent; outline:none; width:100%; font-size:14px; font-weight:500; }
+        .search-icon { color:#94a3b8; }
+        .btn-advanced { display:flex; align-items:center; gap:8px; background:white; border:1px solid #e2e8f0; padding:0 20px; border-radius:16px; font-size:14px; font-weight:600; cursor:pointer; transition:0.2s; white-space:nowrap; }
+        .btn-advanced:hover { background:#f8fafc; }
+        .filter-controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+        .toggle-group { display:flex; background:#f1f5f9; padding:4px; border-radius:14px; }
+        .toggle-group button { border:none; background:transparent; padding:8px 18px; border-radius:10px; font-size:13px; font-weight:700; color:#64748b; cursor:pointer; transition:0.2s; }
+        .toggle-group button.active { background:#1e293b; color:white; box-shadow:0 4px 10px rgba(0,0,0,0.1); }
+        .select-container { position:relative; display:flex; align-items:center; }
+        .select-box { appearance:none; background:white; border:1px solid #e2e8f0; padding:10px 35px 10px 18px; border-radius:14px; font-size:13px; font-weight:600; cursor:pointer; outline:none; min-width:160px; color:#1e293b; transition:0.2s; }
+        .select-box:hover { border-color:#cbd5e1; }
+        .select-box:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+        .select-arrow { position:absolute; right:14px; pointer-events:none; color:#94a3b8; }
+        .status-badge { display:flex; align-items:center; gap:8px; background:#f8fafc; border:1px solid #e2e8f0; padding:10px 18px; border-radius:14px; font-size:13px; font-weight:700; color:#475569; }
+        .btn-logout { margin-left:auto; display:flex; align-items:center; gap:8px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; padding:10px 18px; border-radius:14px; font-size:13px; font-weight:700; cursor:pointer; transition:0.2s; }
+        .btn-logout:hover { background:#fee2e2; }
+
+        .selection-banner { background:#232d3f; padding:24px 32px; border-radius:28px; display:flex; justify-content:space-between; align-items:center; color:white; margin-bottom:32px; box-shadow:0 15px 30px rgba(35,45,63,0.2); }
+        .banner-left { display:flex; align-items:center; gap:20px; }
+        .banner-icon { background:rgba(255,255,255,0.1); padding:14px; border-radius:18px; color:#60a5fa; }
+        .banner-text { display:flex; flex-direction:column; gap:2px; }
+        .banner-label { font-size:11px; font-weight:800; color:#94a3b8; letter-spacing:1.5px; }
+        .banner-value { font-size:19px; font-weight:800; color:#ffffff; margin:0; }
+        .pilihan-pill { background:#3b82f6; color:white; padding:8px 16px; border-radius:20px; font-size:13px; font-weight:800; transition:0.3s; white-space:nowrap; }
+        .pilihan-pill.full { background:#10b981; box-shadow:0 0 15px rgba(16,185,129,0.4); }
+
+        .user-title-context { margin-bottom:32px; }
+        .user-title-context h3 { font-size:22px; font-weight:800; margin:0 0 6px 0; color:#1e293b; }
+        .user-meta { display:flex; justify-content:space-between; color:#64748b; font-size:14px; font-weight:600; flex-wrap:wrap; gap:4px; }
+
+        .grid-container { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:24px; }
+
+        .participant-card { background:white; border-radius:32px; border:1px solid #f1f5f9; overflow:hidden; transition:0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:0 4px 20px rgba(0,0,0,0.02); }
+        .participant-card:hover { transform:translateY(-8px); box-shadow:0 20px 40px rgba(0,0,0,0.08); border-color:#3b82f644; }
+        .card-image-wrapper { height:380px; position:relative; overflow:hidden; }
+        .card-image { width:100%; height:100%; object-fit:cover; transition:0.5s; }
+        .participant-card:hover .card-image { transform:scale(1.05); }
+        .floating-badge { position:absolute; padding:6px 12px; border-radius:12px; font-size:12px; font-weight:800; backdrop-filter:blur(8px); }
+        .id-badge { top:16px; left:16px; background:#3b82f6; color:white; }
+        .full-badge { top:16px; right:16px; background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.4); animation:pulse-red 2s infinite; }
+        @keyframes pulse-red { 0%{transform:scale(1)} 50%{transform:scale(1.05)} 100%{transform:scale(1)} }
+        .label-badge { bottom:16px; right:16px; background:rgba(255,255,255,0.9); color:#334155; }
+        .label-badge.status-panitia { background:#1e293b; color:white; }
+        .card-content { padding:24px; }
+        .card-name { font-size:20px; font-weight:800; color:#1e293b; margin:0 0 6px 0; }
+        .card-location { display:flex; align-items:center; gap:6px; color:#64748b; font-size:13px; font-weight:600; margin-bottom:20px; }
+        .card-stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+        .card-passions-mini { display:flex; flex-direction:column; gap:6px; margin-bottom:24px; padding:12px; background:#f8fafc; border-radius:12px; }
+        .pass-pill { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; color:#475569; }
+        .pass-pill svg { color:#3b82f6; opacity:0.8; }
+        .stat-pill { background:#f8fafc; padding:10px 14px; border-radius:12px; display:flex; align-items:center; gap:10px; font-size:13px; font-weight:700; color:#475569; }
+        .stat-pill svg { color:#3b82f6; opacity:0.8; }
+        .stat-pill.selection-count { background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe; }
+        .stat-pill.selection-count svg { color:#2563eb; }
+        .card-instagram-link { color:inherit; text-decoration:none; }
+        .card-instagram-link:hover { color:#ec4899; text-decoration:underline; }
+        .card-actions { display:flex; gap:12px; }
+        .btn-secondary { flex:1; background:white; border:1px solid #e2e8f0; color:#334155; padding:12px; border-radius:14px; font-size:13px; font-weight:700; text-align:center; text-decoration:none; transition:0.2s; cursor:pointer; }
+        .btn-secondary:hover { background:#f8fafc; border-color:#cbd5e1; }
+        .btn-primary { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; background:#3b82f6; color:white; border:none; padding:12px; border-radius:14px; font-size:13px; font-weight:700; cursor:pointer; transition:0.2s; }
+        .btn-primary:hover { background:#2563eb; transform:translateY(-2px); }
+        .btn-primary.selected { background:#10b981; }
+        .btn-primary.disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; border:1px solid #e2e8f0; }
+        .btn-primary.disabled:hover { transform:none; background:#f1f5f9; }
+
+        .pagination { margin-top:48px; display:flex; align-items:center; justify-content:center; gap:24px; }
+        .pagination button { background:white; border:1px solid #e2e8f0; padding:10px 20px; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; }
+        .pagination button:disabled { opacity:0.5; cursor:not-allowed; }
+        .page-numbers { display:flex; gap:8px; }
+        .page-numbers button { width:40px; height:40px; padding:0; display:flex; align-items:center; justify-content:center; }
+        .page-numbers button.active { background:#1e293b; color:white; border-color:#1e293b; }
+
+        .skeleton-card { height:600px; background:#f1f5f9; border-radius:32px; animation:pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+        /* ── Mobile responsive ─────────────────────────────────────────── */
+        @media (max-width:768px) {
+          .container { padding:20px 12px; }
+          .page-header h1 { font-size:28px; }
+          .toolbar { border-radius:16px; }
+          .grid-container { grid-template-columns:1fr; }
+          .btn-logout { margin-left:0; width:100%; justify-content:center; }
+          .search-group { flex-direction:column; }
+          .selection-banner { padding:16px 20px; flex-direction:column; gap:12px; align-items:flex-start; }
+          .banner-value { font-size:15px; }
+          .filter-controls { gap:8px; }
+          .select-box { min-width:130px; font-size:12px; }
+        }
+
+        /* ── MODAL ─────────────────────────────────────────────────────── */
+        .modal-overlay {
+          position:fixed; inset:0;
+          background:rgba(15,23,42,0.75);
+          backdrop-filter:blur(8px);
+          z-index:1000;
+          display:flex; align-items:center; justify-content:center;
+          padding:20px;
+          /* FIX: -webkit-overflow-scrolling for iOS modal scrolling */
+          -webkit-overflow-scrolling:touch;
+          animation:fadeIn 0.3s ease-out;
+        }
+        .modal-container {
+          background:#f8fafc; width:100%; max-width:1000px;
+          max-height:95vh; border-radius:32px; overflow:hidden;
+          position:relative; box-shadow:0 50px 100px -20px rgba(0,0,0,0.25);
+          animation:slideUp 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .modal-close { position:absolute; top:24px; right:24px; width:36px; height:36px; border-radius:50%; background:white; border:1px solid #e2e8f0; color:#64748b; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:100; transition:0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+        .modal-close:hover { background:#f1f5f9; color:#1e293b; transform:scale(1.1); }
+
+        .modal-layout { display:flex; height:95vh; background:white; }
+
+        /* FIX: Mobile modal layout — stack vertically, allow scrolling */
+        @media (max-width:900px) {
+          .modal-layout { flex-direction:column; overflow-y:auto; height:auto; -webkit-overflow-scrolling:touch; }
+          .modal-sidebar { width:100%; border-right:none; border-bottom:1px solid #e2e8f0; height:auto; }
+          .modal-photo-wrapper { max-width:260px; margin:0 auto 24px; }
+          .modal-content-area { overflow-y:visible; }
+        }
+        @media (max-width:640px) {
+          .modal-container { max-height:100dvh; border-radius:0; }
+          .modal-content-header { padding:24px 20px 12px; }
+          .modal-sections-list { padding:0 20px 24px; }
+          .modal-cta-area { padding:16px 20px; }
+          .info-grid-2col { grid-template-columns:1fr; }
+          .modal-display-name { font-size:26px; }
+        }
+
+        .selection-info { background:#eff6ff; padding:12px; border-radius:12px; border:1px solid #dbeafe; }
+        .selection-value { display:flex; align-items:center; gap:8px; font-weight:800 !important; color:#1d4ed8 !important; margin-top:4px; }
+        .inline-icon { color:#2563eb; }
+
+        .modal-sidebar { width:340px; background:#f8fafc; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; padding:32px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+        .modal-photo-wrapper { position:relative; width:100%; aspect-ratio:3/4.5; border-radius:24px; overflow:hidden; background:white; border:1px solid #e2e8f0; margin-bottom:32px; }
+        .modal-photo-wrapper img { width:100%; height:100%; object-fit:cover; }
+        .modal-initials-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#e2e8f0; color:#94a3b8; font-size:64px; font-weight:800; }
+        .photo-info-badges { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:8px; background:rgba(255,255,255,0.9); backdrop-filter:blur(4px); padding:6px 14px; border-radius:100px; border:1px solid rgba(0,0,0,0.05); white-space:nowrap; }
+        .badge-item { font-size:10px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px; }
+        .modal-id-card { text-align:center; padding-top:10px; }
+        .modal-id-card label { display:block; font-size:10px; font-weight:800; color:#94a3b8; letter-spacing:1.5px; margin-bottom:4px; }
+        .id-number { font-size:42px; font-weight:950; color:#3b82f6; margin-bottom:2px; line-height:1; }
+        .id-footer { font-size:11px; font-weight:900; color:#3b82f6; letter-spacing:0.5px; }
+
+        .modal-content-area { flex:1; display:flex; flex-direction:column; background:white; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+        .modal-content-header { padding:40px 48px 24px; }
+        .modal-display-name { font-size:36px; font-weight:900; color:#1e293b; margin:0 0 6px 0; letter-spacing:-0.5px; }
+        .modal-display-loc { display:flex; align-items:center; gap:8px; color:#64748b; font-size:14px; font-weight:600; }
+        .modal-sections-list { flex:1; padding:0 48px 40px; }
+        .info-section { margin-bottom:40px; position:relative; }
+        .info-section::before { content:''; display:block; height:1px; background:#f1f5f9; margin-bottom:24px; }
+        .section-label { font-size:11px; font-weight:800; color:#94a3b8; letter-spacing:1px; margin-bottom:24px; }
+        .info-grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+        .info-grid-1col { display:grid; grid-template-columns:1fr; gap:24px; }
+        .info-field label { display:block; font-size:10px; font-weight:800; color:#94a3b8; margin-bottom:8px; }
+        .info-field p { font-size:15px; font-weight:700; color:#334155; margin:0; }
+        .modal-cta-area { padding:32px 48px; background:#ffffff; border-top:1px solid #f1f5f9; position:sticky; bottom:0; }
+        .btn-action-main { width:100%; display:flex; align-items:center; justify-content:center; gap:12px; background:#3b82f6; color:white; border:none; padding:18px; border-radius:20px; font-size:16px; font-weight:800; cursor:pointer; transition:0.3s cubic-bezier(0.16,1,0.3,1); }
+        .btn-action-main:hover { transform:translateY(-4px); box-shadow:0 10px 20px rgba(59,130,246,0.2); }
+        .btn-action-main.selected { background:#10b981; }
+        .btn-action-main.selected:hover { box-shadow:0 10px 20px rgba(16,185,129,0.2); }
+        .btn-action-main.disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp { from{transform:translateY(40px) scale(0.98);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
+
+        .status-queue-banner { margin-top:10px; background:#fff1f2; color:#f43f5e; padding:8px 16px; border-radius:10px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; border:1px dashed #fecdd3; animation:pulse-border 2s infinite; }
+        @keyframes pulse-border { 0%{border-color:#fecdd3} 50%{border-color:#f43f5e;box-shadow:0 0 10px rgba(244,63,94,0.1)} 100%{border-color:#fecdd3} }
+
+        /* ── BOX LOVE ─────────────────────────────────────────────────── */
+        .box-love-fab { position:fixed; bottom:32px; right:32px; display:flex; align-items:center; gap:10px; background:linear-gradient(135deg,#f472b6,#ec4899,#be185d); color:white; border:none; padding:14px 22px; border-radius:50px; font-size:14px; font-weight:800; cursor:pointer; z-index:100; box-shadow:0 8px 24px rgba(236,72,153,0.4); transition:all 0.3s cubic-bezier(0.16,1,0.3,1); animation:fabPulse 2.5s ease-in-out infinite; }
+        .box-love-fab:hover { transform:translateY(-4px) scale(1.04); box-shadow:0 16px 32px rgba(236,72,153,0.5); }
+        @keyframes fabPulse { 0%,100%{box-shadow:0 8px 24px rgba(236,72,153,0.4)} 50%{box-shadow:0 8px 32px rgba(236,72,153,0.7)} }
+
+        .bl-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.55); backdrop-filter:blur(12px); z-index:900; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn 0.2s ease; }
+        .bl-popup { background:white; border-radius:32px; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; box-shadow:0 40px 80px rgba(0,0,0,0.2); animation:slideUp 0.3s cubic-bezier(0.16,1,0.3,1); }
+        .bl-header { display:flex; align-items:center; justify-content:space-between; padding:28px 28px 20px; }
+        .bl-logo { display:flex; align-items:center; gap:14px; }
+        .bl-logo-icon { font-size:44px; line-height:1; filter:drop-shadow(0 4px 8px rgba(236,72,153,0.3)); }
+        .bl-title { font-size:26px; font-weight:900; margin:0; color:#1e293b; letter-spacing:-0.5px; }
+        .bl-subtitle { font-size:13px; color:#64748b; margin:0; font-weight:500; }
+        .bl-close { width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:none; background:#f1f5f9; border-radius:50%; cursor:pointer; color:#64748b; transition:0.2s; flex-shrink:0; }
+        .bl-close:hover { background:#e2e8f0; }
+        .bl-notice { margin:0 28px 16px; background:#fff0f6; border:1px solid #fce7f3; border-radius:12px; padding:10px 16px; font-size:13px; color:#be185d; font-weight:600; display:flex; align-items:center; gap:6px; }
+        .bl-body { padding:0 28px; flex:1; }
+        .bl-section { margin-bottom:20px; }
+        .bl-section-label { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:#475569; margin-bottom:10px; }
+        .bl-my-info { display:flex; align-items:center; gap:14px; background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:16px; padding:14px 18px; position:relative; }
+        .bl-my-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; background:#e0e7ff; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:900; color:#4f46e5; flex-shrink:0; }
+        .bl-my-avatar img { width:100%; height:100%; object-fit:cover; }
+        .bl-my-name { font-size:15px; font-weight:800; color:#1e293b; }
+        .bl-my-loc { font-size:12px; color:#64748b; font-weight:600; margin-top:2px; }
+        .bl-check { margin-left:auto; color:#16a34a; flex-shrink:0; }
+        .bl-heart-divider { text-align:center; font-size:24px; margin:4px 0 16px; animation:heartBeat 1.5s ease-in-out infinite; }
+        @keyframes heartBeat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+        .bl-search-bar { position:relative; display:flex; align-items:center; }
+        .bl-search-bar input { width:100%; border:2px solid #e2e8f0; background:#f8fafc; padding:13px 44px 13px 18px; border-radius:14px; font-size:14px; font-weight:600; outline:none; transition:0.2s; color:#1e293b; }
+        .bl-search-bar input:focus { border-color:#f472b6; background:white; box-shadow:0 0 0 4px rgba(244,114,182,0.12); }
+        .bl-search-icon { position:absolute; right:14px; color:#94a3b8; pointer-events:none; }
+        .bl-results { margin-top:10px; border:1.5px solid #fce7f3; border-radius:16px; overflow:hidden; max-height:220px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+        .bl-result-item { display:flex; align-items:center; gap:14px; padding:12px 16px; cursor:pointer; transition:0.15s; border-bottom:1px solid #fff0f6; }
+        .bl-result-item:last-child { border-bottom:none; }
+        .bl-result-item:hover { background:#fff0f6; }
+        .bl-result-item.selected { background:#fdf2f8; }
+        .bl-result-avatar { width:40px; height:40px; border-radius:50%; overflow:hidden; background:#fce7f3; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:900; color:#be185d; flex-shrink:0; }
+        .bl-result-avatar img { width:100%; height:100%; object-fit:cover; }
+        .bl-result-name { font-size:14px; font-weight:800; color:#1e293b; }
+        .bl-result-loc { font-size:11px; color:#64748b; font-weight:600; margin-top:2px; }
+        .bl-loading,.bl-empty { text-align:center; padding:12px; color:#94a3b8; font-size:13px; font-weight:600; }
+        .bl-footer { padding:20px 28px 28px; }
+        .bl-submit-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,#f472b6,#ec4899,#be185d); color:white; border:none; padding:16px; border-radius:18px; font-size:16px; font-weight:800; cursor:pointer; transition:all 0.3s cubic-bezier(0.16,1,0.3,1); box-shadow:0 6px 20px rgba(236,72,153,0.3); }
+        .bl-submit-btn:not(:disabled):hover { transform:translateY(-3px); box-shadow:0 12px 28px rgba(236,72,153,0.45); }
+        .bl-submit-btn:disabled { opacity:0.5; cursor:not-allowed; background:#e2e8f0; color:#94a3b8; box-shadow:none; }
+        .bl-footer-note { text-align:center; font-size:12px; color:#94a3b8; font-weight:500; margin:12px 0 0; line-height:1.5; }
+
+        /* FIX: Mobile Box Love — bottom sheet style on small screens */
+        @media (max-width:480px) {
+          .bl-popup { border-radius:24px 24px 0 0; }
+          .bl-overlay { align-items:flex-end; padding:0; }
+          .box-love-fab { bottom:20px; right:20px; }
+        }
+
+        /* ── Commentary ──────────────────────────────────────────────── */
+        .commentary-box { margin-top:20px; padding-top:16px; border-top:1px dashed #e2e8f0; }
+        .commentary-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+        .anon-toggle { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#64748b; cursor:pointer; }
+        .anon-toggle input { width:14px; height:14px; cursor:pointer; }
+        .comment-name-input { flex:1; border:1px solid #e2e8f0; background:#f8fafc; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; outline:none; }
+        .comment-name-input:focus { border-color:#3b82f6; background:white; }
+        .comment-tags-label { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+        .comment-buttons { display:flex; flex-wrap:wrap; gap:6px; }
+        .btn-tag { background:white; border:1px solid #e2e8f0; padding:6px 12px; border-radius:100px; font-size:11px; font-weight:700; color:#475569; cursor:pointer; transition:all 0.2s; }
+        .btn-tag:hover { background:#eff6ff; border-color:#3b82f6; color:#3b82f6; transform:translateY(-1px); }
+        .btn-tag:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+
+        /* ── Notification ────────────────────────────────────────────── */
+        .header-actions { display:flex; align-items:center; gap:12px; justify-content:center; margin-top:8px; }
+        .btn-notification { background:white; border:1px solid #e2e8f0; width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; transition:all 0.2s; color:#64748b; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
+        .btn-notification:hover { background:#f8fafc; border-color:#3b82f6; color:#3b82f6; transform:translateY(-2px); }
+        .btn-notification.has-new { border-color:#3b82f6; color:#3b82f6; animation:pulse-ring 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+        @keyframes pulse-ring { 0%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)} 70%{box-shadow:0 0 0 10px rgba(59,130,246,0)} 100%{box-shadow:0 0 0 0 rgba(59,130,246,0)} }
+        .notification-dot { position:absolute; top:10px; right:10px; width:10px; height:10px; background:#ef4444; border-radius:50%; border:2px solid white; }
+
+        .comment-sent-indicator { display:flex; align-items:center; gap:8px; background:#fef2f2; color:#ef4444; padding:12px 16px; border-radius:12px; font-size:13px; font-weight:700; border:1px solid #fee2e2; animation:slideIn 0.3s ease-out; }
+        @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+
+        /* ── Comments Modal ──────────────────────────────────────────── */
+        .comments-modal-box { background:white; border-radius:32px; padding:40px; max-width:500px; width:95%; max-height:85vh; overflow-y:auto; -webkit-overflow-scrolling:touch; position:relative; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); }
+        .comments-modal-box .modal-header { text-align:center; margin-bottom:32px; }
+        .comments-modal-box .icon-badge { width:64px; height:64px; background:#eff6ff; color:#3b82f6; display:flex; align-items:center; justify-content:center; border-radius:20px; margin:0 auto 20px; box-shadow:inset 0 0 0 1px rgba(59,130,246,0.1); }
+        .comments-modal-box h2 { font-size:26px; font-weight:800; color:#1e293b; margin-bottom:8px; letter-spacing:-0.025em; }
+        .comments-modal-box p { color:#64748b; font-size:15px; }
+        .modal-close-btn { position:absolute; top:20px; right:20px; background:none; border:none; cursor:pointer; color:#64748b; padding:8px; border-radius:50%; transition:all 0.2s; }
+        .modal-close-btn:hover { background:#f1f5f9; color:#1e293b; }
+        .comments-list { display:flex; flex-direction:column; gap:16px; padding:10px 0; }
+        .comment-item { animation:slideUp 0.3s ease-out; }
+        .comment-bubble { background:linear-gradient(135deg,#ffffff,#f0f7ff); padding:24px; border-radius:28px; border-bottom-left-radius:4px; border:1px solid #e2e8f0; position:relative; box-shadow:0 10px 25px rgba(59,130,246,0.05); transition:0.3s; }
+        .comment-bubble:hover { transform:scale(1.02); box-shadow:0 15px 35px rgba(59,130,246,0.1); border-color:#3b82f6; }
+        .comment-icon { position:absolute; top:-12px; left:20px; background:white; width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,0.1); border:1px solid #e2e8f0; }
+        .comment-text { font-size:22px; font-weight:800; margin-bottom:20px; font-style:italic; line-height:1.4; background:linear-gradient(135deg,#1e293b,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-0.01em; }
+        .comment-meta { display:flex; justify-content:space-between; align-items:center; font-size:13px; color:#64748b; font-weight:700; border-top:1px solid #f1f5f9; padding-top:16px; flex-wrap:wrap; gap:8px; }
+        .author-info { display:flex; align-items:center; gap:6px; }
+        .author-label { color:#94a3b8; font-weight:600; text-transform:uppercase; font-size:10px; letter-spacing:0.5px; }
+        .comment-author { color:#1e293b; font-weight:800; background:#f1f5f9; padding:4px 10px; border-radius:8px; }
+        .comment-date { font-size:11px; background:#eff6ff; color:#3b82f6; padding:4px 10px; border-radius:8px; }
+        .no-comments { text-align:center; padding:80px 20px; color:#94a3b8; display:flex; flex-direction:column; align-items:center; background:#f8fafc; border-radius:32px; border:2px dashed #e2e8f0; }
+
+        .tab-title { font-size:14px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+        .tab-title.sent { color:#ef4444; }
+        .tab-title.sent::before { content:''; width:8px; height:8px; background:#ef4444; border-radius:50%; }
+        .comment-bubble.sent-red { background:linear-gradient(135deg,#fff5f5,#fffcfc); border-color:#fecdd3; box-shadow:0 10px 25px rgba(239,68,68,0.05); }
+        .sent-indicator { font-size:10px; font-weight:950; color:#ef4444; margin-bottom:8px; letter-spacing:0.5px; }
+        .comment-date.red { background:#fef2f2; color:#ef4444; }
+        .spacer-modal { height:48px; border-bottom:2px dashed #f1f5f9; margin-bottom:32px; }
+        .no-comments.mini { padding:30px; font-size:13px; }
+
+        @media (max-width:480px) {
+          .comments-modal-box { padding:24px 16px; max-height:90vh; border-radius:20px; }
+          .comment-text { font-size:16px; }
+        }
+
+        /* SweetAlert2 z-index override */
+        :global(.swal2-container) { z-index:10000 !important; }
+      `}</style>
     </div>
   );
 }
