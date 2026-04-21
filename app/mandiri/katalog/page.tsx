@@ -312,19 +312,27 @@ export default function PublicKatalogPage() {
     localStorage.removeItem("attended_nomor_unik");
     localStorage.removeItem("attended_session_token");
     setHasAttended(false);
-    // FIX: Restore body overflow before reload to avoid stuck scroll on iOS
-    document.body.style.overflow = "";
+    unlockBodyScroll();
     window.location.reload();
   };
 
   // ─── Box Love handlers ────────────────────────────────────────────────────
 
-  // FIX: iOS Safari fix — use CSS class instead of direct body style manipulation
   const lockBodyScroll = () => {
-    document.body.classList.add("overflow-locked");
+    const scrollY = window.scrollY;
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.body.dataset.scrollY = String(scrollY);
   };
   const unlockBodyScroll = () => {
-    document.body.classList.remove("overflow-locked");
+    const scrollY = Number(document.body.dataset.scrollY || "0");
+    document.body.style.overflow = "";
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.width = "";
+    window.scrollTo(0, scrollY);
   };
 
   const openBoxLove = () => {
@@ -1228,16 +1236,7 @@ export default function PublicKatalogPage() {
         </div>
       )}
 
-      <style jsx global>{`
-        /* FIX: iOS Safari body scroll lock — CSS class approach is more reliable
-           than direct style manipulation which can fail on WebKit */
-        body.overflow-locked {
-          overflow: hidden;
-          /* iOS Safari specific: prevent bounce scroll behind modal */
-          position: fixed;
-          width: 100%;
-        }
-      `}</style>
+
 
       <style jsx>{`
         .container { max-width:1200px; margin:0 auto; padding:40px 20px; font-family:'Inter',sans-serif; color:#334155; }

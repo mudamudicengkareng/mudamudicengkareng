@@ -23,7 +23,8 @@ export default function PublicKatalogDetailPage({ params }: { params: { id: stri
             return;
         }
 
-        const authRes = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${storedUnik}`);
+        const storedToken = localStorage.getItem("attended_session_token") || "";
+        const authRes = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${encodeURIComponent(storedUnik)}&sessionToken=${encodeURIComponent(storedToken)}`);
         const authData = await authRes.json();
         if (authData.status !== "attended") {
             setVerifying(false);
@@ -121,7 +122,7 @@ export default function PublicKatalogDetailPage({ params }: { params: { id: stri
       }
 
       try {
-        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorPeserta=${unik}&deviceId=${deviceId}`);
+        const res = await fetch(`/api/public/mandiri/katalog/check-status?nomorUnik=${encodeURIComponent(unik)}&deviceId=${encodeURIComponent(deviceId)}`);
         const resData = await res.json();
         if (resData.status === "attended") {
           localStorage.setItem("attended_nomor_unik", resData.nomorUnik || unik);
