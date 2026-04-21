@@ -32,4 +32,5 @@ export interface GenerusItem {
   kota?: string | null;
   mandiriDesaKota?: string | null;
   panitiaStatus?: string | null;
+  roomVisitCount?: number | null;
 }
