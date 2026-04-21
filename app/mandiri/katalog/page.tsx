@@ -969,91 +969,76 @@ export default function PublicKatalogPage() {
       </main>
 
       {/* DETAIL MODAL */}
-      {isModalOpen && selectedParticipant && (
-        <div className="modal-overlay" onClick={closeDetail}>
-          <div className={`modal-container gender-${selectedParticipant.jenisKelamin?.toLowerCase()}`} onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeDetail}><X size={20} /></button>
-            <div className="modal-layout">
-              <aside className="modal-sidebar">
-                <div className="modal-photo-wrapper">
-                  {selectedParticipant.foto
-                    ? <img src={selectedParticipant.foto} alt={selectedParticipant.nama} loading="lazy" />
-                    : <div className="modal-initials-placeholder">{selectedParticipant.nama.charAt(0)}</div>
+      {isModalOpen && selectedParticipant && (() => {
+        const sp = selectedParticipant;
+        const isMe = sp.nomorUrut === currentUser?.nomorUrut;
+        const isSelected = selectedIds.includes(String(sp.id));
+        const isFull = (sp.selectedCount || 0) >= 5;
+        const isMaxed = selectedIds.length >= 3;
+        const isMale = sp.jenisKelamin === "L";
+        const accentColor = isMale ? "#3b82f6" : "#ec4899";
+        const accentGrad = isMale
+          ? "linear-gradient(135deg,#1e40af,#3b82f6)"
+          : "linear-gradient(135deg,#be185d,#ec4899)";
+        return (
+          <div className="dm-overlay" onClick={closeDetail}>
+            <div className="dm-sheet" onClick={e => e.stopPropagation()}>
+
+              {/* HERO */}
+              <div className="dm-hero" style={{background: accentGrad}}>
+                <button className="dm-close" onClick={closeDetail}><X size={18}/></button>
+                <div className="dm-avatar-wrap">
+                  {sp.foto
+                    ? <img src={sp.foto} alt={sp.nama} className="dm-avatar-img"/>
+                    : <div className="dm-avatar-init" style={{background: accentColor}}>{sp.nama.charAt(0)}</div>
                   }
-                  <div className="photo-info-badges">
-                    <span className="badge-item">📷 100%</span>
-                    <span className="badge-item">👤</span>
-                  </div>
                 </div>
-                <div className="modal-id-card">
-                  <label>NOMOR PESERTA</label>
-                  <div className="id-number">#{selectedParticipant.nomorUrut || selectedParticipant.nomorUnik || "-"}</div>
-                  <div className="id-footer">MANDIRI PARTICIPANT</div>
-                </div>
-              </aside>
-
-              <div className="modal-content-area">
-                <header className="modal-content-header">
-                  <h2 className="modal-display-name">{selectedParticipant.nama}</h2>
-                  <div className="modal-display-loc">
-                    <MapPin size={14} />
-                    <span>{selectedParticipant.mandiriDesaKota || "-"} • {selectedParticipant.mandiriDesaNama || selectedParticipant.desaNama || "-"}</span>
-                  </div>
-                </header>
-
-                <div className="modal-sections-list">
-                  <div className="info-section">
-                    <h3 className="section-label">INFORMASI PRIBADI</h3>
-                    <div className="info-grid-2col">
-                      <div className="info-field"><label>TEMPAT, TGL LAHIR</label><p>{selectedParticipant.tempatLahir || "-"}, {selectedParticipant.tanggalLahir || "-"}</p></div>
-                      <div className="info-field"><label>UMUR (USIA)</label><p>{selectedParticipant.tanggalLahir ? `${new Date().getFullYear() - new Date(selectedParticipant.tanggalLahir).getFullYear()} Tahun` : "-"}</p></div>
-                      <div className="info-field"><label>JENIS KELAMIN</label><p>{selectedParticipant.jenisKelamin === "L" ? "Laki-Laki" : "Perempuan"}</p></div>
-                      <div className="info-field"><label>STATUS PERNIKAHAN</label><p>{selectedParticipant.statusNikah || "Belum Menikah"}</p></div>
-                      <div className="info-field selection-info">
-                        <label>TOTAL DIPILIH (AKTIF)</label>
-                        <p className="selection-value"><UserCheck size={16} className="inline-icon" />{selectedParticipant.selectedCount || 0} / 5 Peserta</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="info-section">
-                    <h3 className="section-label">LATAR BELAKANG</h3>
-                    <div className="info-grid-2col">
-                      <div className="info-field"><label>PENDIDIKAN TERAKHIR</label><p>{selectedParticipant.pendidikan || "-"}</p></div>
-                      <div className="info-field"><label>PEKERJAAN / BIDANG</label><p>{selectedParticipant.pekerjaan || "-"}</p></div>
-                      <div className="info-field"><label>SUKU BANGSA</label><p>{selectedParticipant.suku || "-"}</p></div>
-                      <div className="info-field"><label>HOBI & PASSION</label><p>{selectedParticipant.hobi || "-"}</p></div>
-                    </div>
-                  </div>
-
-                  <div className="info-section">
-                    <h3 className="section-label">TENTANG SAYA</h3>
-                    <div className="info-grid-1col">
-                      <div className="info-field full"><label>ALAMAT TINGGAL</label><p>{selectedParticipant.alamat || "-"}</p></div>
-                      <div className="info-field full"><label>MAKANAN & MINUMAN FAVORIT</label><p>{selectedParticipant.makananMinumanFavorit || "-"}</p></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modal-cta-area">
-                  {selectedParticipant.nomorUrut !== currentUser?.nomorUrut ? (
-                    <button
-                      className={`btn-action-main ${selectedIds.includes(String(selectedParticipant.id)) ? "selected" : ""} ${(selectedIds.length >= 3 && !selectedIds.includes(String(selectedParticipant.id))) || ((selectedParticipant.selectedCount || 0) >= 5 && !selectedIds.includes(String(selectedParticipant.id))) ? "disabled" : ""}`}
-                      onClick={() => handleConfirmSelection(String(selectedParticipant.id), selectedParticipant.nama)}
-                      disabled={selectedIds.includes(String(selectedParticipant.id)) || (selectedIds.length >= 3 && !selectedIds.includes(String(selectedParticipant.id))) || ((selectedParticipant.selectedCount || 0) >= 5 && !selectedIds.includes(String(selectedParticipant.id)))}
-                    >
-                      {selectedIds.includes(String(selectedParticipant.id)) ? <CheckCircle2 size={18} /> : <Heart size={18} />}
-                      <span>{selectedIds.includes(String(selectedParticipant.id)) ? "Terpilih" : ((selectedParticipant.selectedCount || 0) >= 5 ? "Peserta Sudah Penuh (5/5)" : (selectedIds.length >= 3 ? "Batas Pemilihan Tercapai" : "Pilih Peserta Ini"))}</span>
-                    </button>
-                  ) : (
-                    <button className="btn-action-main disabled" disabled>Ini Adalah Profil Anda</button>
-                  )}
+                <div className="dm-hero-badge">#{sp.nomorUrut || "-"}</div>
+                <h2 className="dm-name">{sp.nama}</h2>
+                <div className="dm-loc"><MapPin size={13}/><span>{sp.mandiriDesaKota || "-"} • {sp.mandiriDesaNama || sp.desaNama || "-"}</span></div>
+                <div className="dm-chips">
+                  <span className="dm-chip">{isMale ? "👨 Laki-laki" : "👩 Perempuan"}</span>
+                  <span className="dm-chip">{sp.statusNikah || "Belum Menikah"}</span>
+                  <span className="dm-chip"><UserCheck size={12}/> {sp.selectedCount || 0}/5</span>
                 </div>
               </div>
+
+              {/* BODY */}
+              <div className="dm-body">
+                <div className="dm-section-title">Informasi Pribadi</div>
+                <div className="dm-grid">
+                  <div className="dm-field"><span className="dm-label">TTL</span><span className="dm-val">{sp.tempatLahir || "-"}, {sp.tanggalLahir || "-"}</span></div>
+                  <div className="dm-field"><span className="dm-label">Usia</span><span className="dm-val">{sp.tanggalLahir ? `${new Date().getFullYear() - new Date(sp.tanggalLahir).getFullYear()} Tahun` : "-"}</span></div>
+                  <div className="dm-field"><span className="dm-label">Pendidikan</span><span className="dm-val">{sp.pendidikan || "-"}</span></div>
+                  <div className="dm-field"><span className="dm-label">Pekerjaan</span><span className="dm-val">{sp.pekerjaan || "-"}</span></div>
+                  <div className="dm-field"><span className="dm-label">Suku</span><span className="dm-val">{sp.suku || "-"}</span></div>
+                  <div className="dm-field"><span className="dm-label">Hobi</span><span className="dm-val">{sp.hobi || "-"}</span></div>
+                  <div className="dm-field dm-field-full"><span className="dm-label">Makanan/Minuman Favorit</span><span className="dm-val">{sp.makananMinumanFavorit || "-"}</span></div>
+                  <div className="dm-field dm-field-full"><span className="dm-label">Alamat</span><span className="dm-val">{sp.alamat || "-"}</span></div>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="dm-cta">
+                {isMe ? (
+                  <button className="dm-btn dm-btn-disabled" disabled>Ini Profil Anda</button>
+                ) : isSelected ? (
+                  <button className="dm-btn dm-btn-selected" disabled><CheckCircle2 size={18}/>Sudah Terpilih</button>
+                ) : isFull ? (
+                  <button className="dm-btn dm-btn-disabled" disabled>Peserta Penuh (5/5)</button>
+                ) : isMaxed ? (
+                  <button className="dm-btn dm-btn-disabled" disabled>Batas Pilihan Tercapai (3/3)</button>
+                ) : (
+                  <button className="dm-btn" style={{background: accentGrad}} onClick={() => handleConfirmSelection(String(sp.id), sp.nama)}>
+                    <Heart size={18} fill="white"/>Pilih Peserta Ini
+                  </button>
+                )}
+              </div>
+
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* BOX LOVE FAB */}
       {boxLoveStatus === "open" && (
@@ -1339,82 +1324,115 @@ export default function PublicKatalogPage() {
           .select-box { min-width:130px; font-size:12px; }
         }
 
-        /* ── MODAL ─────────────────────────────────────────────────────── */
-        .modal-overlay {
-          position:fixed; inset:0;
-          background:rgba(15,23,42,0.75);
-          backdrop-filter:blur(8px);
-          z-index:1000;
-          display:flex; align-items:center; justify-content:center;
-          padding:20px;
-          /* FIX: -webkit-overflow-scrolling for iOS modal scrolling */
-          -webkit-overflow-scrolling:touch;
-          animation:fadeIn 0.3s ease-out;
+        /* ── DETAIL MODAL ───────────────────────────────────────────── */
+        .dm-overlay {
+          position:fixed; inset:0; z-index:1000;
+          background:rgba(15,23,42,0.7);
+          backdrop-filter:blur(6px);
+          display:flex; align-items:flex-end; justify-content:center;
+          animation:fadeIn 0.2s ease;
         }
-        .modal-container {
-          background:#f8fafc; width:100%; max-width:1000px;
-          max-height:95vh; border-radius:32px; overflow:hidden;
-          position:relative; box-shadow:0 50px 100px -20px rgba(0,0,0,0.25);
-          animation:slideUp 0.5s cubic-bezier(0.16,1,0.3,1);
+        @media(min-width:640px) {
+          .dm-overlay { align-items:center; padding:20px; }
+        }
+        .dm-sheet {
+          background:white;
+          width:100%; max-width:480px;
+          border-radius:28px 28px 0 0;
+          max-height:92dvh;
           display:flex; flex-direction:column;
+          overflow:hidden;
+          box-shadow:0 -8px 40px rgba(0,0,0,0.2);
+          animation:slideUp 0.35s cubic-bezier(0.16,1,0.3,1);
         }
-        .modal-close { position:absolute; top:24px; right:24px; width:36px; height:36px; border-radius:50%; background:white; border:1px solid #e2e8f0; color:#64748b; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:100; transition:0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
-        .modal-close:hover { background:#f1f5f9; color:#1e293b; transform:scale(1.1); }
-
-        .modal-layout { display:flex; flex:1; min-height:0; background:white; }
-
-        /* FIX: Mobile modal layout — stack vertically, allow scrolling */
-        @media (max-width:900px) {
-          .modal-overlay { padding:0; align-items:flex-end; }
-          .modal-container { max-height:92dvh; border-radius:24px 24px 0 0; }
-          .modal-layout { flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-          .modal-sidebar { width:100%; border-right:none; border-bottom:1px solid #e2e8f0; flex-shrink:0; }
-          .modal-photo-wrapper { max-width:200px; margin:0 auto 20px; }
-          .modal-content-area { overflow-y:visible; flex:none; }
-        }
-        @media (max-width:640px) {
-          .modal-container { max-height:95dvh; }
-          .modal-content-header { padding:20px 16px 12px; }
-          .modal-sections-list { padding:0 16px 20px; }
-          .modal-cta-area { padding:12px 16px 20px; }
-          .info-grid-2col { grid-template-columns:1fr; }
-          .modal-display-name { font-size:22px; }
-          .modal-sidebar { padding:20px 16px; }
+        @media(min-width:640px) {
+          .dm-sheet { border-radius:28px; max-height:90dvh; }
         }
 
-        .selection-info { background:#eff6ff; padding:12px; border-radius:12px; border:1px solid #dbeafe; }
-        .selection-value { display:flex; align-items:center; gap:8px; font-weight:800 !important; color:#1d4ed8 !important; margin-top:4px; }
-        .inline-icon { color:#2563eb; }
+        /* hero */
+        .dm-hero {
+          position:relative;
+          padding:48px 20px 24px;
+          display:flex; flex-direction:column; align-items:center;
+          flex-shrink:0;
+        }
+        .dm-close {
+          position:absolute; top:14px; right:14px;
+          width:32px; height:32px; border-radius:50%;
+          background:rgba(255,255,255,0.25); border:none;
+          color:white; display:flex; align-items:center; justify-content:center;
+          cursor:pointer; transition:0.2s;
+        }
+        .dm-close:hover { background:rgba(255,255,255,0.4); }
+        .dm-avatar-wrap {
+          width:100px; height:100px; border-radius:50%;
+          border:4px solid rgba(255,255,255,0.5);
+          overflow:hidden; margin-bottom:14px;
+          box-shadow:0 8px 24px rgba(0,0,0,0.2);
+          flex-shrink:0;
+        }
+        .dm-avatar-img { width:100%; height:100%; object-fit:cover; }
+        .dm-avatar-init {
+          width:100%; height:100%;
+          display:flex; align-items:center; justify-content:center;
+          font-size:40px; font-weight:900; color:white;
+        }
+        .dm-hero-badge {
+          background:rgba(255,255,255,0.25);
+          color:white; font-size:11px; font-weight:800;
+          padding:3px 10px; border-radius:20px;
+          margin-bottom:8px; letter-spacing:0.5px;
+        }
+        .dm-name {
+          font-size:22px; font-weight:900; color:white;
+          margin:0 0 6px; text-align:center; line-height:1.2;
+        }
+        .dm-loc {
+          display:flex; align-items:center; gap:5px;
+          color:rgba(255,255,255,0.85); font-size:12px; font-weight:600;
+          margin-bottom:14px; text-align:center;
+        }
+        .dm-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+        .dm-chip {
+          background:rgba(255,255,255,0.2);
+          color:white; font-size:11px; font-weight:700;
+          padding:4px 12px; border-radius:20px;
+          display:flex; align-items:center; gap:4px;
+        }
 
-        .modal-sidebar { width:340px; background:#f8fafc; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; padding:32px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-        .modal-photo-wrapper { position:relative; width:100%; aspect-ratio:3/4.5; border-radius:24px; overflow:hidden; background:white; border:1px solid #e2e8f0; margin-bottom:32px; }
-        .modal-photo-wrapper img { width:100%; height:100%; object-fit:cover; }
-        .modal-initials-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#e2e8f0; color:#94a3b8; font-size:64px; font-weight:800; }
-        .photo-info-badges { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:8px; background:rgba(255,255,255,0.9); backdrop-filter:blur(4px); padding:6px 14px; border-radius:100px; border:1px solid rgba(0,0,0,0.05); white-space:nowrap; }
-        .badge-item { font-size:10px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px; }
-        .modal-id-card { text-align:center; padding-top:10px; }
-        .modal-id-card label { display:block; font-size:10px; font-weight:800; color:#94a3b8; letter-spacing:1.5px; margin-bottom:4px; }
-        .id-number { font-size:42px; font-weight:950; color:#3b82f6; margin-bottom:2px; line-height:1; }
-        .id-footer { font-size:11px; font-weight:900; color:#3b82f6; letter-spacing:0.5px; }
+        /* body */
+        .dm-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:20px 20px 8px; }
+        .dm-section-title {
+          font-size:11px; font-weight:800; color:#94a3b8;
+          letter-spacing:1px; text-transform:uppercase;
+          margin-bottom:14px;
+        }
+        .dm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .dm-field {
+          background:#f8fafc; border-radius:14px;
+          padding:12px 14px;
+          display:flex; flex-direction:column; gap:4px;
+        }
+        .dm-field-full { grid-column:span 2; }
+        .dm-label { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+        .dm-val { font-size:13px; font-weight:700; color:#1e293b; line-height:1.4; }
 
-        .modal-content-area { flex:1; display:flex; flex-direction:column; background:white; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-        .modal-content-header { padding:40px 48px 24px; }
-        .modal-display-name { font-size:36px; font-weight:900; color:#1e293b; margin:0 0 6px 0; letter-spacing:-0.5px; }
-        .modal-display-loc { display:flex; align-items:center; gap:8px; color:#64748b; font-size:14px; font-weight:600; }
-        .modal-sections-list { flex:1; padding:0 48px 40px; }
-        .info-section { margin-bottom:40px; position:relative; }
-        .info-section::before { content:''; display:block; height:1px; background:#f1f5f9; margin-bottom:24px; }
-        .section-label { font-size:11px; font-weight:800; color:#94a3b8; letter-spacing:1px; margin-bottom:24px; }
-        .info-grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-        .info-grid-1col { display:grid; grid-template-columns:1fr; gap:24px; }
-        .info-field label { display:block; font-size:10px; font-weight:800; color:#94a3b8; margin-bottom:8px; }
-        .info-field p { font-size:15px; font-weight:700; color:#334155; margin:0; }
-        .modal-cta-area { padding:32px 48px; background:#ffffff; border-top:1px solid #f1f5f9; position:sticky; bottom:0; }
-        .btn-action-main { width:100%; display:flex; align-items:center; justify-content:center; gap:12px; background:#3b82f6; color:white; border:none; padding:18px; border-radius:20px; font-size:16px; font-weight:800; cursor:pointer; transition:0.3s cubic-bezier(0.16,1,0.3,1); }
-        .btn-action-main:hover { transform:translateY(-4px); box-shadow:0 10px 20px rgba(59,130,246,0.2); }
-        .btn-action-main.selected { background:#10b981; }
-        .btn-action-main.selected:hover { box-shadow:0 10px 20px rgba(16,185,129,0.2); }
-        .btn-action-main.disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+        /* cta */
+        .dm-cta {
+          padding:14px 20px 28px;
+          flex-shrink:0;
+          background:white;
+          border-top:1px solid #f1f5f9;
+        }
+        .dm-btn {
+          width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+          color:white; border:none; padding:16px;
+          border-radius:18px; font-size:15px; font-weight:800;
+          cursor:pointer; transition:all 0.25s;
+        }
+        .dm-btn:not(:disabled):active { transform:scale(0.98); }
+        .dm-btn-selected { background:#10b981 !important; cursor:default; }
+        .dm-btn-disabled { background:#e2e8f0 !important; color:#94a3b8 !important; cursor:not-allowed; }
 
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes slideUp { from{transform:translateY(40px) scale(0.98);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
