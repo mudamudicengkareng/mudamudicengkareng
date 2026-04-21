@@ -483,6 +483,76 @@ export default function RomanticRoomPage() {
         doc.save(`Kuisioner_PDKT_${myProfile?.nama}.pdf`);
     };
 
+    const handleEditRecord = async (item: any) => {
+        const { value: formValues } = await Swal.fire({
+            title: 'Edit Hasil Pertemuan',
+            html: `
+                <div style="text-align:left">
+                    <p style="font-size:13px;color:#64748b;margin-bottom:16px">
+                        <b>${item.pemilihNama}</b> &amp; <b>${item.terpilihNama}</b>
+                    </p>
+                    <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:#1e293b">Hasil Pemilih (${item.pemilihNama})</label>
+                    <select id="edit_pengirim" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 0 16px;font-size:13px">
+                        <option value="Lanjut" ${item.pemilihHasil === 'Lanjut' ? 'selected' : ''}>Lanjut</option>
+                        <option value="Ragu-ragu" ${item.pemilihHasil === 'Ragu-ragu' ? 'selected' : ''}>Ragu-ragu</option>
+                        <option value="Tidak Lanjut" ${item.pemilihHasil === 'Tidak Lanjut' ? 'selected' : ''}>Tidak Lanjut</option>
+                    </select>
+                    <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:#1e293b">Hasil Terpilih (${item.terpilihNama})</label>
+                    <select id="edit_penerima" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 0 0;font-size:13px">
+                        <option value="Lanjut" ${item.terpilihHasil === 'Lanjut' ? 'selected' : ''}>Lanjut</option>
+                        <option value="Ragu-ragu" ${item.terpilihHasil === 'Ragu-ragu' ? 'selected' : ''}>Ragu-ragu</option>
+                        <option value="Tidak Lanjut" ${item.terpilihHasil === 'Tidak Lanjut' ? 'selected' : ''}>Tidak Lanjut</option>
+                    </select>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#1e293b',
+            preConfirm: () => ({
+                hasilPengirim: (document.getElementById('edit_pengirim') as HTMLSelectElement).value,
+                hasilPenerima: (document.getElementById('edit_penerima') as HTMLSelectElement).value,
+            })
+        });
+
+        if (!formValues) return;
+        try {
+            const res = await fetch(`/api/mandiri/kunjungan/${item.pemilihanId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formValues)
+            });
+            if (!res.ok) throw new Error((await res.json()).error);
+            Swal.fire({ title: "Berhasil", text: "Data berhasil diupdate.", icon: "success", timer: 1500, showConfirmButton: false });
+            fetchData();
+        } catch (err: any) {
+            Swal.fire("Error", err.message, "error");
+        }
+    };
+
+    const handleDeleteRecord = async (item: any) => {
+        const result = await Swal.fire({
+            title: 'Hapus Record Ini?',
+            html: `Data pertemuan <b>${item.pemilihNama}</b> &amp; <b>${item.terpilihNama}</b> akan dihapus permanen termasuk data pemilihan. Tindakan ini tidak dapat dibatalkan.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Ya, Hapus Permanen!',
+            cancelButtonText: 'Batal'
+        });
+
+        if (!result.isConfirmed) return;
+        try {
+            const res = await fetch(`/api/mandiri/kunjungan/${item.pemilihanId}`, { method: "DELETE" });
+            if (!res.ok) throw new Error((await res.json()).error);
+            Swal.fire({ title: "Terhapus!", text: "Record berhasil dihapus permanen.", icon: "success", timer: 1500, showConfirmButton: false });
+            fetchData();
+        } catch (err: any) {
+            Swal.fire("Error", err.message, "error");
+        }
+    };
+
     const handleExportExcel = () => {
         const data = visitHistory.map(item => ({
             "Nomor Peserta Pemilih": item.pemilihNomorUrut,
@@ -671,6 +741,7 @@ export default function RomanticRoomPage() {
                                             <th>Status Terpilih</th>
                                             <th>Hasil Terpilih</th>
                                             <th className="text-center">Nomor Room</th>
+                                            <th className="text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -706,6 +777,12 @@ export default function RomanticRoomPage() {
                                                 </td>
                                                 <td className="text-center">
                                                     <span className="visit-count">{item.roomNama}</span>
+                                                </td>
+                                                <td className="text-center">
+                                                    <div style={{display:'flex',gap:'4px',justifyContent:'center'}}>
+                                                        <button className="btn-act btn-edit" onClick={() => handleEditRecord(item)} title="Edit Hasil">✏️</button>
+                                                        <button className="btn-act btn-del" onClick={() => handleDeleteRecord(item)} title="Hapus Permanen">🗑️</button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -813,6 +890,10 @@ export default function RomanticRoomPage() {
                     .result-badge.badge-success { background: #16a34a; }
                     .result-badge.badge-warning { background: #d97706; }
                     .result-badge.badge-danger { background: #dc2626; }
+                    .btn-act { border: none; border-radius: 4px; padding: 3px 7px; font-size: 12px; cursor: pointer; transition: opacity 0.2s; }
+                    .btn-act:hover { opacity: 0.75; }
+                    .btn-edit { background: #eff6ff; }
+                    .btn-del { background: #fef2f2; }
 
                     .room-timer-badge {
                         display: flex;
