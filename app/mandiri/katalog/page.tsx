@@ -1356,26 +1356,30 @@ export default function PublicKatalogPage() {
           max-height:95vh; border-radius:32px; overflow:hidden;
           position:relative; box-shadow:0 50px 100px -20px rgba(0,0,0,0.25);
           animation:slideUp 0.5s cubic-bezier(0.16,1,0.3,1);
+          display:flex; flex-direction:column;
         }
         .modal-close { position:absolute; top:24px; right:24px; width:36px; height:36px; border-radius:50%; background:white; border:1px solid #e2e8f0; color:#64748b; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:100; transition:0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
         .modal-close:hover { background:#f1f5f9; color:#1e293b; transform:scale(1.1); }
 
-        .modal-layout { display:flex; height:95vh; background:white; }
+        .modal-layout { display:flex; flex:1; min-height:0; background:white; }
 
         /* FIX: Mobile modal layout — stack vertically, allow scrolling */
         @media (max-width:900px) {
-          .modal-layout { flex-direction:column; overflow-y:auto; height:auto; -webkit-overflow-scrolling:touch; }
-          .modal-sidebar { width:100%; border-right:none; border-bottom:1px solid #e2e8f0; height:auto; }
-          .modal-photo-wrapper { max-width:260px; margin:0 auto 24px; }
-          .modal-content-area { overflow-y:visible; }
+          .modal-overlay { padding:0; align-items:flex-end; }
+          .modal-container { max-height:92dvh; border-radius:24px 24px 0 0; }
+          .modal-layout { flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+          .modal-sidebar { width:100%; border-right:none; border-bottom:1px solid #e2e8f0; flex-shrink:0; }
+          .modal-photo-wrapper { max-width:200px; margin:0 auto 20px; }
+          .modal-content-area { overflow-y:visible; flex:none; }
         }
         @media (max-width:640px) {
-          .modal-container { max-height:100dvh; border-radius:0; }
-          .modal-content-header { padding:24px 20px 12px; }
-          .modal-sections-list { padding:0 20px 24px; }
-          .modal-cta-area { padding:16px 20px; }
+          .modal-container { max-height:95dvh; }
+          .modal-content-header { padding:20px 16px 12px; }
+          .modal-sections-list { padding:0 16px 20px; }
+          .modal-cta-area { padding:12px 16px 20px; }
           .info-grid-2col { grid-template-columns:1fr; }
-          .modal-display-name { font-size:26px; }
+          .modal-display-name { font-size:22px; }
+          .modal-sidebar { padding:20px 16px; }
         }
 
         .selection-info { background:#eff6ff; padding:12px; border-radius:12px; border:1px solid #dbeafe; }
