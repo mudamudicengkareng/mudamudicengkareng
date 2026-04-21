@@ -54,11 +54,12 @@ async function getStats(session: any) {
       kuliahCount,
       bekerjaCount,
       mandiriCount,
-      mandiriHadirTotal,
+      mandiriHadirPeserta,
       mandiriHadirLaki,
       mandiriHadirPerempuan,
       mandiriHadirPanitia,
-      mandiriHadirPengurus
+      mandiriTidakHadirPeserta,
+      mandiriTidakHadirPanitia,
     ] = await Promise.all([
       db.select({ count: sql<number>`count(DISTINCT ${generus.id})` }).from(generus).leftJoin(users, eq(generus.id, users.generusId)).where(finalGenerusFilter),
       db.select({ count: sql<number>`count(*)` }).from(kegiatan).where(kegiatanFilter),
@@ -112,29 +113,54 @@ async function getStats(session: any) {
         .from(mandiri)
         .innerJoin(generus, eq(mandiri.generusId, generus.id))
         .where(generusFilter),
-      // Attendance Stats (Filtered by latest activity)
+      // Hadir Peserta (ada di mandiri, TIDAK ada di formPanitiaDanPengurus)
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiriAbsensi)
         .innerJoin(mandiri, eq(mandiriAbsensi.generusId, mandiri.generusId))
-        .where(attendanceFilter()),
+        .where(and(
+          attendanceFilter(),
+          sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
+        )),
+      // Hadir Peserta Laki-laki (peserta, bukan panitia)
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiriAbsensi)
         .innerJoin(mandiri, eq(mandiriAbsensi.generusId, mandiri.generusId))
         .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
-        .where(attendanceFilter(eq(generus.jenisKelamin, "L"))),
+        .where(and(
+          attendanceFilter(eq(generus.jenisKelamin, "L")),
+          sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
+        )),
+      // Hadir Peserta Perempuan (peserta, bukan panitia)
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiriAbsensi)
         .innerJoin(mandiri, eq(mandiriAbsensi.generusId, mandiri.generusId))
         .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
-        .where(attendanceFilter(eq(generus.jenisKelamin, "P"))),
+        .where(and(
+          attendanceFilter(eq(generus.jenisKelamin, "P")),
+          sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
+        )),
+      // Hadir Panitia
       db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
         .from(mandiriAbsensi)
         .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
         .where(attendanceFilter()),
-      db.select({ count: sql<number>`count(*)` })
-        .from(mandiriAbsensi)
-        .innerJoin(users, eq(mandiriAbsensi.generusId, users.generusId))
-        .where(attendanceFilter(sql`${users.role} IN ('pengurus_daerah', 'kmm_daerah', 'desa', 'kelompok')`)),
+      // Tidak Hadir Peserta (terdaftar di mandiri, bukan panitia, tidak ada di absensi kegiatan ini)
+      db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
+        .from(mandiri)
+        .where(and(
+          sql`${mandiri.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`,
+          currentActivityId
+            ? sql`${mandiri.generusId} NOT IN (SELECT generus_id FROM mandiri_absensi WHERE kegiatan_id = ${currentActivityId} AND keterangan = 'hadir')`
+            : sql`1=1`
+        )),
+      // Tidak Hadir Panitia (terdaftar di formPanitiaDanPengurus, tidak ada di absensi kegiatan ini)
+      db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
+        .from(formPanitiaDanPengurus)
+        .where(
+          currentActivityId
+            ? sql`${formPanitiaDanPengurus.generusId} IS NOT NULL AND ${formPanitiaDanPengurus.generusId} NOT IN (SELECT generus_id FROM mandiri_absensi WHERE kegiatan_id = ${currentActivityId} AND keterangan = 'hadir')`
+            : sql`1=1`
+        ),
     ]);
 
     return {
@@ -155,11 +181,12 @@ async function getStats(session: any) {
       kuliah: Number(kuliahCount[0].count),
       bekerja: Number(bekerjaCount[0].count),
       mandiri: Number(mandiriCount[0].count),
-      mandiriHadirTotal: Number(mandiriHadirTotal[0]?.count || 0),
+      mandiriHadirPeserta: Number(mandiriHadirPeserta[0]?.count || 0),
       mandiriHadirLaki: Number(mandiriHadirLaki[0]?.count || 0),
       mandiriHadirPerempuan: Number(mandiriHadirPerempuan[0]?.count || 0),
       mandiriHadirPanitia: Number(mandiriHadirPanitia[0]?.count || 0),
-      mandiriHadirPengurus: Number(mandiriHadirPengurus[0]?.count || 0),
+      mandiriTidakHadirPeserta: Number(mandiriTidakHadirPeserta[0]?.count || 0),
+      mandiriTidakHadirPanitia: Number(mandiriTidakHadirPanitia[0]?.count || 0),
     };
   } catch (error) {
     console.error("Dashboard DB fetch error:", error);
@@ -207,10 +234,12 @@ function AdminDashboard({ role, stats }: { role: string; stats: any }) {
       <div>
         <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Ringkasan Kehadiran Mandiri</h3>
         <div className="stats-grid" style={{ marginBottom: "2rem" }}>
-          <StatCard icon="check-square" color="blue" label="Total Kehadiran Peserta" value={stats?.mandiriHadirTotal ?? 0} href="/mandiri/absensi" />
-          <StatCard icon="users" color="indigo" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
-          <StatCard icon="users" color="indigo" label="Kehadiran Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
-          <StatCard icon="users" color="pink" label="Kehadiran Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="check-square" color="blue" label="Total Kehadiran Peserta" value={stats?.mandiriHadirPeserta ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-check" color="indigo" label="Kehadiran Peserta Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-check" color="pink" label="Kehadiran Peserta Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="users" color="emerald" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-x" color="orange" label="Peserta Tidak Hadir" value={stats?.mandiriTidakHadirPeserta ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-x" color="red" label="Panitia Tidak Hadir" value={stats?.mandiriTidakHadirPanitia ?? 0} href="/mandiri/absensi" />
         </div>
       </div>
     );
@@ -218,6 +247,17 @@ function AdminDashboard({ role, stats }: { role: string; stats: any }) {
 
   return (
     <div>
+      {/* Kehadiran Mandiri Section */}
+      <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Ringkasan Kehadiran Mandiri</h3>
+      <div className="stats-grid" style={{ marginBottom: "2.5rem" }}>
+        <StatCard icon="check-square" color="blue" label="Total Kehadiran Peserta" value={stats?.mandiriHadirPeserta ?? 0} href="/mandiri/absensi" />
+        <StatCard icon="user-check" color="indigo" label="Kehadiran Peserta Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
+        <StatCard icon="user-check" color="pink" label="Kehadiran Peserta Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
+        <StatCard icon="users" color="emerald" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
+        <StatCard icon="user-x" color="orange" label="Peserta Tidak Hadir" value={stats?.mandiriTidakHadirPeserta ?? 0} href="/mandiri/absensi" />
+        <StatCard icon="user-x" color="red" label="Panitia Tidak Hadir" value={stats?.mandiriTidakHadirPanitia ?? 0} href="/mandiri/absensi" />
+      </div>
+
       {/* Generus & Pendidikan Section */}
       <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Data Generus & Pendidikan</h3>
       <div className="stats-grid" style={{ marginBottom: "2.5rem" }}>
@@ -352,6 +392,7 @@ function StatCard({ icon, color, label, href, value, gradient }: {
     "check-square": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>,
     "user-check": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><polyline points="17 11 19 13 23 9" /></svg>,
     "user-cog": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4" /><path d="M10 15H6a4 4 0 0 0-4 4v2" /><circle cx="19" cy="16" r="3" /><path d="m19 19-3 3h6l-3-3z" /></svg>,
+    "user-x": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" /></svg>,
   };
 
   return (
