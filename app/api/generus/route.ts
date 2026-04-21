@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, formPanitiaDanPengurus } from "@/lib/schema";
+import { generus, desa, kelompok, usersOld, mandiri, mandiriDesa, mandiriKelompok, formPanitiaDanPengurus, mandiriKunjungan } from "@/lib/schema";
 import { eq, and, or, like, sql, not, isNull, isNotNull, ne, inArray, notInArray } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
@@ -195,6 +195,7 @@ export async function GET(request: NextRequest) {
         makananMinumanFavorit: generus.makananMinumanFavorit,
         createdAt: generus.createdAt,
         panitiaStatus: formPanitiaDanPengurus.dapukan,
+        roomVisitCount: sql<number>`(SELECT COUNT(DISTINCT mk.pemilihan_id) FROM mandiri_kunjungan mk WHERE mk.generus_id = ${generus.id} AND mk.pemilihan_id IS NOT NULL)`.mapWith(Number),
     };
 
     if (isExport) {
