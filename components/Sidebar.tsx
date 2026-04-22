@@ -170,6 +170,14 @@ const userNavs: Record<string, any[]> = {
       ],
     },
   ],
+  admin_pdkt: [
+    {
+      section: "Katalog",
+      items: [
+        { href: "/admin/katalog", label: "Katalog Peserta", icon: "katalog" },
+      ],
+    },
+  ],
   admin_keuangan: [
     {
       section: "Menu Utama",
