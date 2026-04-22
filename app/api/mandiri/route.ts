@@ -25,14 +25,18 @@ export async function GET(request: NextRequest) {
     const conditions = [];
 
     if (search) {
-      conditions.push(
-        or(
-          like(generus.nama, `%${search}%`),
-          like(generus.nomorUnik, `%${search}%`),
-          like(mandiriDesa.nama, `%${search}%`),
-          like(mandiriDesa.kota, `%${search}%`)
-        )
-      );
+      if (/^\d+$/.test(search)) {
+        conditions.push(eq(mandiri.nomorUrut, Number(search)));
+      } else {
+        conditions.push(
+          or(
+            like(generus.nama, `%${search}%`),
+            like(generus.nomorUnik, `%${search}%`),
+            like(mandiriDesa.nama, `%${search}%`),
+            like(mandiriDesa.kota, `%${search}%`)
+          )
+        );
+      }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

@@ -83,22 +83,26 @@ function buildWhereClause(
   }
 
   if (search) {
-    const isGnrCode = /^GNR\d+$/i.test(search.trim());
+    const trimmedSearch = search.trim();
+    const isGnrCode = /^GNR\d+$/i.test(trimmedSearch);
+    const isNomorUrut = /^\d+$/.test(trimmedSearch);
+
     if (isGnrCode) {
-      // Exact match for codes is much faster
-      conditions.push(eq(generus.nomorUnik, search.trim().toUpperCase()));
+      conditions.push(eq(generus.nomorUnik, trimmedSearch.toUpperCase()));
+    } else if (isNomorUrut) {
+      conditions.push(eq(mandiri.nomorUrut, Number(trimmedSearch)));
     } else {
       conditions.push(
         or(
-          like(generus.nama, `%${search}%`),
-          like(generus.nomorUnik, `%${search}%`),
-          like(mandiri.nomorUrut, `%${search}%`),
-          like(mandiriDesa.kota, `%${search}%`),
-          like(mandiriDesa.nama, `%${search}%`),
-          like(desa.nama, `%${search}%`),
-          like(kelompok.nama, `%${search}%`),
-          like(generus.alamat, `%${search}%`),
-          like(formPanitiaDanPengurus.dapukan, `%${search}%`)
+          like(generus.nama, `%${trimmedSearch}%`),
+          like(generus.nomorUnik, `%${trimmedSearch}%`),
+          like(mandiri.nomorUrut, `%${trimmedSearch}%`),
+          like(mandiriDesa.kota, `%${trimmedSearch}%`),
+          like(mandiriDesa.nama, `%${trimmedSearch}%`),
+          like(desa.nama, `%${trimmedSearch}%`),
+          like(kelompok.nama, `%${trimmedSearch}%`),
+          like(generus.alamat, `%${trimmedSearch}%`),
+          like(formPanitiaDanPengurus.dapukan, `%${trimmedSearch}%`)
         )
       );
     }

@@ -57,18 +57,22 @@ export async function GET(request: NextRequest) {
     const conditions: any[] = [];
     
     if (search) {
-      conditions.push(
-        or(
-          like(generus.nama, `%${search}%`),
-          like(generus.nomorUnik, `%${search}%`),
-          like(mandiri.nomorUrut, `%${search}%`),
-          like(mandiriDesa.kota, `%${search}%`),
-          like(mandiriDesa.nama, `%${search}%`),
-          like(desa.nama, `%${search}%`),
-          like(kelompok.nama, `%${search}%`),
-          like(formPanitiaDanPengurus.dapukan, `%${search}%`)
-        )
-      );
+      if (/^\d+$/.test(search)) {
+        conditions.push(eq(mandiri.nomorUrut, Number(search)));
+      } else {
+        conditions.push(
+          or(
+            like(generus.nama, `%${search}%`),
+            like(generus.nomorUnik, `%${search}%`),
+            like(mandiri.nomorUrut, `%${search}%`),
+            like(mandiriDesa.kota, `%${search}%`),
+            like(mandiriDesa.nama, `%${search}%`),
+            like(desa.nama, `%${search}%`),
+            like(kelompok.nama, `%${search}%`),
+            like(formPanitiaDanPengurus.dapukan, `%${search}%`)
+          )
+        );
+      }
     }
 
     if (jenisKelamin && (jenisKelamin === "L" || jenisKelamin === "P")) {
