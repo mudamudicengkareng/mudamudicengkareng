@@ -46,6 +46,7 @@ export default function AdminKatalogPage() {
   const [showAccessQR, setShowAccessQR] = useState(false);
   const accessQRCanvasRef = useRef<HTMLCanvasElement>(null);
   const [profileDetail, setProfileDetail] = useState<GenerusItem | null>(null);
+  const [zoomPhoto, setZoomPhoto] = useState<GenerusItem | null>(null);
   const limit = 20;
 
   const fetchData = useCallback(async () => {
@@ -638,13 +639,13 @@ export default function AdminKatalogPage() {
             <div className="card-inner">
               <div className="card-main">
                 <div className="card-photo-col">
-                  <div className="photo-wrapper photo-clickable" onClick={() => setProfileDetail(item)} title="Lihat profil lengkap">
+                  <div className="photo-wrapper photo-clickable" onClick={() => setZoomPhoto(item)} title="Lihat foto">
                     {item.foto ? <img src={item.foto} alt={item.nama} /> : <div className="photo-placeholder">{item.nama.charAt(0)}</div>}
                     <div className={`status-badge ${item.panitiaStatus || item.role === 'admin' ? 'panitia' : 'peserta'}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                       {siteLogo && <img src={siteLogo} alt="" style={{ width: '10px', height: '10px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />}
                       <span>{item.panitiaStatus || item.role === 'admin' ? "Panitia" : "Peserta"}</span>
                     </div>
-                    <div className="photo-zoom-hint">👁</div>
+                    <div className="photo-zoom-hint">🔍</div>
                   </div>
                   <div className="no-urut-tag">#{item.nomorUrut || "000"}</div>
                 </div>
@@ -716,6 +717,22 @@ export default function AdminKatalogPage() {
           </div>
         ))}
       </div>
+
+      {zoomPhoto && (
+        <div className="modal-overlay zoom-overlay" onClick={() => setZoomPhoto(null)}>
+          <div className="zoom-modal" onClick={e => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setZoomPhoto(null)}>&times;</button>
+            {zoomPhoto.foto
+              ? <img src={zoomPhoto.foto} alt={zoomPhoto.nama} className="zoom-img" />
+              : <div className="zoom-placeholder">{zoomPhoto.nama.charAt(0)}</div>
+            }
+            <div className="zoom-name">{zoomPhoto.nama}</div>
+            <button className="zoom-detail-btn" onClick={() => { setZoomPhoto(null); setProfileDetail(zoomPhoto); }}>
+              <User size={14} /> Lihat Profil Lengkap
+            </button>
+          </div>
+        </div>
+      )}
 
       {profileDetail && (
         <div className="modal-overlay" onClick={() => setProfileDetail(null)}>
@@ -1631,13 +1648,67 @@ export default function AdminKatalogPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(0,0,0,0.35);
-          font-size: 22px;
+          background: rgba(0,0,0,0.4);
+          font-size: 20px;
           opacity: 0;
           transition: opacity 0.2s;
           border-radius: 22px;
         }
         .photo-clickable:hover .photo-zoom-hint { opacity: 1; }
+
+        /* Zoom Photo Modal */
+        .zoom-overlay { background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); }
+        .zoom-modal {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          padding: 16px;
+        }
+        .zoom-img {
+          width: 340px;
+          height: 340px;
+          object-fit: cover;
+          border-radius: 28px;
+          border: 4px solid white;
+          box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+        .zoom-placeholder {
+          width: 340px;
+          height: 340px;
+          border-radius: 28px;
+          border: 4px solid white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 120px;
+          font-weight: 900;
+          color: #3b82f6;
+          background: #eff6ff;
+        }
+        .zoom-name {
+          color: white;
+          font-size: 20px;
+          font-weight: 800;
+          text-align: center;
+          text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        .zoom-detail-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: white;
+          color: #1e293b;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 16px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .zoom-detail-btn:hover { background: #f1f5f9; transform: translateY(-1px); }
 
         /* Profile Detail Modal */
         .profile-detail-modal {
