@@ -81,7 +81,7 @@ export default function AdminKatalogPage() {
         if (!profileRes.ok) throw new Error("Gagal mengambil profil");
         const profileJson = await profileRes.json();
         setMyProfile(profileJson);
-        setIsAuthorized(!!profileJson.isInPdkt || ["admin", "tim_pnkb", "admin_romantic_room", "kmm_daerah", "pengurus_daerah"].includes(profileJson.role));
+        setIsAuthorized(!!profileJson.isInPdkt || ["admin", "tim_pnkb", "admin_romantic_room", "kmm_daerah", "pengurus_daerah", "admin_pdkt"].includes(profileJson.role));
 
         // Fetch activity info
         const activityRes = await fetch("/api/mandiri/kegiatan?limit=1", { cache: "no-store" });
@@ -645,9 +645,6 @@ export default function AdminKatalogPage() {
                     </div>
                   </div>
                   <div className="no-urut-tag">#{item.nomorUrut || "000"}</div>
-                  {(item.roomVisitCount ?? 0) > 0 && (
-                    <div className="room-visit-tag">🚪 {item.roomVisitCount}x Room</div>
-                  )}
                 </div>
 
                 <div className="card-info-col">
@@ -1373,16 +1370,6 @@ export default function AdminKatalogPage() {
           background: #eff6ff;
           padding: 2px 10px;
           border-radius: 8px;
-        }
-        .room-visit-tag {
-          font-size: 11px;
-          font-weight: 800;
-          color: #16a34a;
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-          padding: 2px 8px;
-          border-radius: 8px;
-          white-space: nowrap;
         }
 
         .card-info-col {
