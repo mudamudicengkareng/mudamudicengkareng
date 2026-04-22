@@ -45,6 +45,7 @@ export default function AdminKatalogPage() {
   const [siteLogo, setSiteLogo] = useState<string | null>(null);
   const [showAccessQR, setShowAccessQR] = useState(false);
   const accessQRCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [profileDetail, setProfileDetail] = useState<GenerusItem | null>(null);
   const limit = 20;
 
   const fetchData = useCallback(async () => {
@@ -637,12 +638,13 @@ export default function AdminKatalogPage() {
             <div className="card-inner">
               <div className="card-main">
                 <div className="card-photo-col">
-                  <div className="photo-wrapper">
+                  <div className="photo-wrapper photo-clickable" onClick={() => setProfileDetail(item)} title="Lihat profil lengkap">
                     {item.foto ? <img src={item.foto} alt={item.nama} /> : <div className="photo-placeholder">{item.nama.charAt(0)}</div>}
                     <div className={`status-badge ${item.panitiaStatus || item.role === 'admin' ? 'panitia' : 'peserta'}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                       {siteLogo && <img src={siteLogo} alt="" style={{ width: '10px', height: '10px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />}
                       <span>{item.panitiaStatus || item.role === 'admin' ? "Panitia" : "Peserta"}</span>
                     </div>
+                    <div className="photo-zoom-hint">👁</div>
                   </div>
                   <div className="no-urut-tag">#{item.nomorUrut || "000"}</div>
                 </div>
@@ -714,6 +716,98 @@ export default function AdminKatalogPage() {
           </div>
         ))}
       </div>
+
+      {profileDetail && (
+        <div className="modal-overlay" onClick={() => setProfileDetail(null)}>
+          <div className="modal-content profile-detail-modal" onClick={e => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setProfileDetail(null)}>&times;</button>
+            <div className="pd-header" style={{ background: profileDetail.jenisKelamin === 'P' ? 'linear-gradient(135deg, #be185d, #ec4899)' : 'linear-gradient(135deg, #1d4ed8, #3b82f6)' }}>
+              <div className="pd-photo">
+                {profileDetail.foto
+                  ? <img src={profileDetail.foto} alt={profileDetail.nama} />
+                  : <div className="pd-initials">{profileDetail.nama.charAt(0)}</div>
+                }
+              </div>
+              <div className="pd-header-info">
+                <div className="pd-status-badge">{profileDetail.panitiaStatus || profileDetail.role === 'admin' ? "Panitia" : "Peserta"} #{profileDetail.nomorUrut || "-"}</div>
+                <h2 className="pd-name">{profileDetail.nama}</h2>
+                <div className="pd-region"><MapPin size={12} /> {profileDetail.mandiriDesaKota || "-"} &bull; {profileDetail.mandiriDesaNama || profileDetail.desaNama || "-"}</div>
+              </div>
+            </div>
+            <div className="pd-body">
+              <div className="pd-grid">
+                <div className="pd-item">
+                  <span className="pd-label">Jenis Kelamin</span>
+                  <span className="pd-value">{profileDetail.jenisKelamin === 'L' ? 'Laki-laki' : profileDetail.jenisKelamin === 'P' ? 'Perempuan' : '-'}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Usia</span>
+                  <span className="pd-value">{calculateAge(profileDetail.tanggalLahir ?? undefined)} tahun</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Tempat Lahir</span>
+                  <span className="pd-value">{profileDetail.tempatLahir || "-"}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Tanggal Lahir</span>
+                  <span className="pd-value">{profileDetail.tanggalLahir || "-"}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Status Nikah</span>
+                  <span className="pd-value">{profileDetail.statusNikah || "-"}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Pendidikan</span>
+                  <span className="pd-value">{profileDetail.pendidikan || "-"}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Pekerjaan</span>
+                  <span className="pd-value">{profileDetail.pekerjaan || "-"}</span>
+                </div>
+                <div className="pd-item">
+                  <span className="pd-label">Suku</span>
+                  <span className="pd-value">{profileDetail.suku || "-"}</span>
+                </div>
+                {profileDetail.noTelp && (
+                  <div className="pd-item">
+                    <span className="pd-label">WhatsApp</span>
+                    <a href={`https://wa.me/${profileDetail.noTelp.replace(/\D/g,'').replace(/^0/,'62')}`} target="_blank" rel="noopener noreferrer" className="pd-link pd-link-wa">{profileDetail.noTelp}</a>
+                  </div>
+                )}
+                {profileDetail.instagram && (
+                  <div className="pd-item">
+                    <span className="pd-label">Instagram</span>
+                    <a href={`https://instagram.com/${profileDetail.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer" className="pd-link pd-link-ig">@{profileDetail.instagram.replace('@','')}</a>
+                  </div>
+                )}
+                {profileDetail.hobi && (
+                  <div className="pd-item pd-item-full">
+                    <span className="pd-label">Hobi</span>
+                    <span className="pd-value">{profileDetail.hobi}</span>
+                  </div>
+                )}
+                {profileDetail.makananMinumanFavorit && (
+                  <div className="pd-item pd-item-full">
+                    <span className="pd-label">Makanan / Minuman Favorit</span>
+                    <span className="pd-value">{profileDetail.makananMinumanFavorit}</span>
+                  </div>
+                )}
+                {profileDetail.alamat && (
+                  <div className="pd-item pd-item-full">
+                    <span className="pd-label">Alamat</span>
+                    <span className="pd-value">{profileDetail.alamat}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="pd-footer">
+              <button className="btn-print-card" style={{ background: '#3b82f6' }} onClick={() => { setProfileDetail(null); setSelectedParticipant(profileDetail); }}>
+                <Sparkles size={16} /> <span>Lihat ID Card</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAccessQR && (
         <div className="modal-overlay" onClick={() => setShowAccessQR(false)}>
@@ -1528,6 +1622,125 @@ export default function AdminKatalogPage() {
           border: 1px solid #e2e8f0;
         }
         .btn-profile-detail:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+        /* Photo clickable */
+        .photo-clickable { cursor: pointer; }
+        .photo-zoom-hint {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0,0,0,0.35);
+          font-size: 22px;
+          opacity: 0;
+          transition: opacity 0.2s;
+          border-radius: 22px;
+        }
+        .photo-clickable:hover .photo-zoom-hint { opacity: 1; }
+
+        /* Profile Detail Modal */
+        .profile-detail-modal {
+          background: white;
+          border-radius: 28px;
+          width: 480px;
+          max-width: 100%;
+          overflow: hidden;
+          padding: 0 !important;
+        }
+        .pd-header {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          padding: 28px 28px 24px;
+          color: white;
+        }
+        .pd-photo {
+          width: 80px;
+          height: 80px;
+          border-radius: 20px;
+          overflow: hidden;
+          border: 3px solid rgba(255,255,255,0.4);
+          flex-shrink: 0;
+        }
+        .pd-photo img { width: 100%; height: 100%; object-fit: cover; }
+        .pd-initials {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 32px;
+          font-weight: 900;
+          background: rgba(255,255,255,0.2);
+        }
+        .pd-header-info { flex: 1; min-width: 0; }
+        .pd-status-badge {
+          display: inline-block;
+          background: rgba(255,255,255,0.2);
+          border: 1px solid rgba(255,255,255,0.3);
+          padding: 2px 10px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 6px;
+        }
+        .pd-name {
+          font-size: 20px;
+          font-weight: 900;
+          margin: 0 0 6px;
+          line-height: 1.2;
+        }
+        .pd-region {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 12px;
+          font-weight: 600;
+          opacity: 0.85;
+        }
+        .pd-body { padding: 24px 28px; }
+        .pd-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .pd-item {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .pd-item-full { grid-column: 1 / -1; }
+        .pd-label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .pd-value {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e293b;
+          line-height: 1.4;
+        }
+        .pd-link {
+          font-size: 13px;
+          font-weight: 700;
+          text-decoration: none;
+        }
+        .pd-link-wa { color: #16a34a; }
+        .pd-link-wa:hover { text-decoration: underline; }
+        .pd-link-ig { color: #be185d; }
+        .pd-link-ig:hover { text-decoration: underline; }
+        .pd-footer {
+          padding: 16px 28px 24px;
+          display: flex;
+          justify-content: center;
+          border-top: 1px solid #f1f5f9;
+        }
 
         /* Modal & Print Styles (Preserved/Enhanced) */
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
