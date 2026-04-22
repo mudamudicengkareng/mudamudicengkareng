@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Admin PDKT restriction - only /admin/katalog
-  if (payload.role === "admin_pdkt" && !pathname.startsWith("/admin/katalog") && !pathname.startsWith("/api/mandiri") && !pathname.startsWith("/api/auth/logout") && !pathname.startsWith("/api/profile") && !pathname.startsWith("/profile") && !pathname.startsWith("/dashboard")) {
+  if (payload.role === "admin_pdkt" && !pathname.startsWith("/admin/katalog") && !pathname.startsWith("/api/auth/logout")) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
