@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Admin PDKT restriction - only /admin/katalog
-  if (payload.role === "admin_pdkt" && !pathname.startsWith("/admin/katalog") && !pathname.startsWith("/api/auth/logout")) {
+  if (payload.role === "admin_pdkt" && !pathname.startsWith("/admin/katalog") && !pathname.startsWith("/api/auth/logout") && !pathname.startsWith("/api/profile") && !pathname.startsWith("/api/generus") && !pathname.startsWith("/api/mandiri/settings") && !pathname.startsWith("/api/mandiri/box-love") && !pathname.startsWith("/api/mandiri/kegiatan")) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
