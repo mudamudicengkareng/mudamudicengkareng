@@ -65,7 +65,8 @@ export async function GET(request: NextRequest) {
           like(mandiriDesa.kota, `%${search}%`),
           like(mandiriDesa.nama, `%${search}%`),
           like(desa.nama, `%${search}%`),
-          like(kelompok.nama, `%${search}%`)
+          like(kelompok.nama, `%${search}%`),
+          like(formPanitiaDanPengurus.dapukan, `%${search}%`)
         )
       );
     }

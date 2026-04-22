@@ -92,11 +92,13 @@ function buildWhereClause(
         or(
           like(generus.nama, `%${search}%`),
           like(generus.nomorUnik, `%${search}%`),
+          like(mandiri.nomorUrut, `%${search}%`),
           like(mandiriDesa.kota, `%${search}%`),
           like(mandiriDesa.nama, `%${search}%`),
           like(desa.nama, `%${search}%`),
           like(kelompok.nama, `%${search}%`),
-          like(generus.alamat, `%${search}%`)
+          like(generus.alamat, `%${search}%`),
+          like(formPanitiaDanPengurus.dapukan, `%${search}%`)
         )
       );
     }
@@ -251,9 +253,11 @@ export async function GET(request: NextRequest) {
     if (search) {
       countQuery.leftJoin(desa, eq(generus.desaId, desa.id));
       countQuery.leftJoin(kelompok, eq(generus.kelompokId, kelompok.id));
+      countQuery.leftJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id));
+      countQuery.leftJoin(mandiri, eq(generus.id, mandiri.generusId));
     }
 
-    if (mandiriOnly || status !== "all") {
+    if (search || mandiriOnly || status !== "all") {
       countQuery.leftJoin(formPanitiaDanPengurus, eq(generus.id, formPanitiaDanPengurus.generusId));
     }
 

@@ -8,7 +8,7 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText
+  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText, X
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -21,6 +21,7 @@ export default function AdminKatalogPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [gender, setGender] = useState<string>("all");
   const [status, setStatus] = useState("all");
   const [pendidikan, setPendidikan] = useState("all");
@@ -144,7 +145,15 @@ export default function AdminKatalogPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(fetchData, 300);
+    const timer = setTimeout(() => {
+      setSearch(searchTerm);
+      setPage(1);
+    }, 400); // Debounce to allow smooth typing
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchData, 100);
     return () => clearTimeout(timer);
   }, [fetchData]);
 
@@ -540,9 +549,35 @@ export default function AdminKatalogPage() {
           <input
             type="text"
             placeholder="Cari nama, nomor, desa, atau alamat..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button 
+              className="clear-search-btn-admin"
+              onClick={() => setSearchTerm("")}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748b',
+                transition: '0.2s',
+                zIndex: 10
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
         <div className="toolbar-top">
           <div className="action-buttons" style={{ flexWrap: 'wrap' }}>

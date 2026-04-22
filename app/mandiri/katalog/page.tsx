@@ -15,6 +15,7 @@ export default function PublicKatalogPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [gender, setGender] = useState("all");
   const [category, setCategory] = useState("all");
   const [pendidikan, setPendidikan] = useState("all");
@@ -256,7 +257,15 @@ export default function PublicKatalogPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(fetchData, 300);
+    const timer = setTimeout(() => {
+      setSearch(searchTerm);
+      setPage(1);
+    }, 400); // Increased debounce slightly for better mobile performance
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchData, 100);
     return () => clearTimeout(timer);
   }, [fetchData]);
 
@@ -762,12 +771,21 @@ export default function PublicKatalogPage() {
               autoCorrect="off"
               autoComplete="off"
               placeholder="Cari nama, no. urut, kota, atau desa..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                className="clear-search-btn"
+                onClick={() => setSearchTerm("")}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <button className="btn-advanced" onClick={() => {
             setSearch("");
+            setSearchTerm("");
             setGender(currentUser?.jenisKelamin === "L" ? "P" : (currentUser?.jenisKelamin === "P" ? "L" : "all"));
             setCategory("all");
             setPendidikan("all");
@@ -1234,9 +1252,11 @@ export default function PublicKatalogPage() {
 
         .toolbar { display:flex; flex-direction:column; gap:16px; background:white; padding:16px; border-radius:24px; box-shadow:0 4px 15px rgba(0,0,0,0.03); border:1px solid #f1f5f9; margin-bottom:24px; }
         .search-group { display:flex; gap:12px; }
-        .search-bar { flex:1; display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 20px; border-radius:16px; }
+        .search-bar { flex:1; position:relative; display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 20px; border-radius:16px; }
         .search-bar input { border:none; background:transparent; outline:none; width:100%; font-size:14px; font-weight:500; }
         .search-icon { color:#94a3b8; }
+        .clear-search-btn { background:#e2e8f0; border:none; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#64748b; transition:0.2s; margin-left:4px; }
+        .clear-search-btn:hover { background:#cbd5e1; color:#1e293b; }
         .btn-advanced { display:flex; align-items:center; gap:8px; background:white; border:1px solid #e2e8f0; padding:0 20px; border-radius:16px; font-size:14px; font-weight:600; cursor:pointer; transition:0.2s; white-space:nowrap; }
         .btn-advanced:hover { background:#f8fafc; }
         .filter-controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
