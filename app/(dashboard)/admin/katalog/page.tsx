@@ -8,7 +8,7 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText, X
+  Download, Eye, EyeOff, ChevronDown, ChevronUp, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText, X, ArrowUpDown, Send
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -31,6 +31,7 @@ export default function AdminKatalogPage() {
   const [selectedRegion, setSelectedRegion] = useState("all");
   const [desaList, setDesaList] = useState<any[]>([]);
   const [selectedDesa, setSelectedDesa] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authorizedChecked, setAuthorizedChecked] = useState(false);
   const [latestActivity, setLatestActivity] = useState<any>(null);
@@ -64,7 +65,9 @@ export default function AdminKatalogPage() {
         status: status,
         pendidikan: pendidikan,
         mandiriDesaId: selectedRegion,
-        desaId: selectedDesa
+        desaId: selectedDesa,
+        sortBy: "nomorUrut",
+        order: sortOrder
       });
       const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
       const json = await res.json();
@@ -75,7 +78,7 @@ export default function AdminKatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthorized, search, page, gender, status, pendidikan, selectedRegion, selectedDesa]);
+  }, [isAuthorized, search, page, gender, status, pendidikan, selectedRegion, selectedDesa, sortOrder]);
 
   useEffect(() => {
     async function init() {
@@ -241,7 +244,9 @@ export default function AdminKatalogPage() {
         status: status,
         pendidikan: pendidikan,
         mandiriDesaId: selectedRegion,
-        desaId: selectedDesa
+        desaId: selectedDesa,
+        sortBy: "nomorUrut",
+        order: sortOrder
       });
       const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
       const json = await res.json();
@@ -361,7 +366,9 @@ export default function AdminKatalogPage() {
         status: status,
         pendidikan: pendidikan,
         mandiriDesaId: selectedRegion,
-        desaId: selectedDesa
+        desaId: selectedDesa,
+        sortBy: "nomorUrut",
+        order: sortOrder
       });
       const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
       const json = await res.json();
@@ -479,7 +486,9 @@ export default function AdminKatalogPage() {
         status: status,
         pendidikan: pendidikan,
         mandiriDesaId: selectedRegion,
-        desaId: selectedDesa
+        desaId: selectedDesa,
+        sortBy: "nomorUrut",
+        order: sortOrder
       });
       const res = await fetch(`/api/generus?${params}`, { cache: "no-store" });
       const json = await res.json();
@@ -521,6 +530,55 @@ export default function AdminKatalogPage() {
     }
   };
 
+  const handleSendReportWA = async () => {
+    const { isConfirmed } = await Swal.fire({
+      title: "Kirim Laporan ke WhatsApp?",
+      text: "Laporan jumlah total peserta dan panitia akan dikirimkan ke nomor WhatsApp 085159522624 via Bot.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Ya, Kirim!",
+      cancelButtonText: "Batal",
+      confirmButtonColor: "#25d366",
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({
+      title: "Menyiapkan Laporan...",
+      text: "Mohon tunggu sejenak...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const res = await fetch("/api/generus/whatsapp-report", { method: "POST" });
+      const json = await res.json();
+
+      if (json.success) {
+        Swal.fire({
+          icon: "success",
+          title: "Berhasil!",
+          text: "Laporan telah berhasil diproses. " + (json.sent ? "Telah dikirim ke WhatsApp." : "Pesan siap dikirim."),
+          confirmButtonText: "Tutup"
+        });
+        
+        // If not automatically sent by server (e.g. session missing), 
+        // we can provide a fallback to open WA link
+        if (!json.sent && json.whatsappMessage) {
+          const waUrl = `https://wa.me/6285159522624?text=${encodeURIComponent(json.whatsappMessage)}`;
+          window.open(waUrl, "_blank");
+        }
+      } else {
+        throw new Error(json.error || "Gagal mengirim laporan");
+      }
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire("Gagal", e.message, "error");
+    }
+  };
+
   const copyPublicLink = () => {
     const url = `${window.location.origin}/mandiri/katalog`;
     navigator.clipboard.writeText(url);
@@ -544,43 +602,25 @@ export default function AdminKatalogPage() {
 
       </header>
       <div className="toolbar-section">
-        <div className="search-box" style={{ marginBottom: '20px' }}>
-          <Search size={18} className="icon-muted" />
-          <input
-            type="text"
-            placeholder="Cari nama, nomor, desa, atau alamat..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <button 
-              className="clear-search-btn-admin"
-              onClick={() => setSearchTerm("")}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: '#f1f5f9',
-                border: 'none',
-                borderRadius: '50%',
-                width: '24px',
-                height: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#64748b',
-                transition: '0.2s',
-                zIndex: 10
-              }}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <div className="toolbar-top">
-          <div className="action-buttons" style={{ flexWrap: 'wrap' }}>
+        <div className="toolbar-top-row">
+          <div className="search-box">
+            <Search size={18} className="icon-muted" />
+            <input
+              type="text"
+              placeholder="Cari nama, nomor, desa, atau alamat..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                className="clear-search-btn-admin"
+                onClick={() => setSearchTerm("")}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="main-actions">
             <button className={`btn-toggle-public ${publicStatus === "open" ? "active" : ""}`} onClick={handleTogglePublic}>
               {publicStatus === "open" ? <Eye size={16} /> : <EyeOff size={16} />}
               <span>Public View</span>
@@ -594,6 +634,11 @@ export default function AdminKatalogPage() {
               <Heart size={16} />
               <span>Box Love {boxLoveStatus === "open" ? "(ON)" : "(OFF)"}</span>
             </button>
+          </div>
+        </div>
+
+        <div className="export-actions-bar">
+          <div className="export-group">
             <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }} onClick={() => setShowAccessQR(true)}>
               <QrCode size={16} />
               <span>QR Akses</span>
@@ -606,6 +651,10 @@ export default function AdminKatalogPage() {
               <FileText size={16} />
               <span>Export PDF</span>
             </button>
+            <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)' }} onClick={handleSendReportWA}>
+              <Send size={16} />
+              <span>Kirim Laporan WA</span>
+            </button>
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />
               <span>Cetak ID Card</span>
@@ -613,56 +662,91 @@ export default function AdminKatalogPage() {
           </div>
         </div>
 
-        <div className="filters-bar">
-          <div className="filter-group">
-            <label>Gender</label>
-            <div className="pill-group">
-              <button className={gender === "all" ? "active" : ""} onClick={() => setGender("all")}>Semua</button>
-              <button className={gender === "L" ? "active" : ""} onClick={() => setGender("L")}>L</button>
-              <button className={gender === "P" ? "active" : ""} onClick={() => setGender("P")}>P</button>
-            </div>
+        <div className="filters-container">
+          <div className="filters-header">
+            <Settings2 size={14} />
+            <span>Filter Data</span>
           </div>
-
-          <div className="filter-group">
-            <label>Status</label>
-            <div className="pill-group">
-              <button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Semua</button>
-              <button className={status === "peserta" ? "active" : ""} onClick={() => setStatus("peserta")}>Peserta</button>
-              <button className={status === "panitia" ? "active" : ""} onClick={() => setStatus("panitia")}>Panitia</button>
+          <div className="filters-grid">
+            <div className="filter-group">
+              <label>Gender</label>
+              <div className="pill-group">
+                <button className={gender === "all" ? "active" : ""} onClick={() => setGender("all")}>Semua</button>
+                <button className={gender === "L" ? "active" : ""} onClick={() => setGender("L")}>L</button>
+                <button className={gender === "P" ? "active" : ""} onClick={() => setGender("P")}>P</button>
+              </div>
             </div>
-          </div>
 
-          <div className="filter-group flex-wide">
-            <label>Pendidikan</label>
-            <div className="select-box-wrapper">
-              <select
-                className="dropdown-box"
-                value={pendidikan}
-                onChange={(e) => { setPendidikan(e.target.value); setPage(1); }}
+            <div className="filter-group">
+              <label>Status</label>
+              <div className="pill-group">
+                <button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>Semua</button>
+                <button className={status === "peserta" ? "active" : ""} onClick={() => setStatus("peserta")}>Peserta</button>
+                <button className={status === "panitia" ? "active" : ""} onClick={() => setStatus("panitia")}>Panitia</button>
+              </div>
+            </div>
+
+            <div className="filter-group">
+              <label>Pendidikan</label>
+              <div className="select-box-wrapper">
+                <select
+                  className="dropdown-box"
+                  value={pendidikan}
+                  onChange={(e) => { setPendidikan(e.target.value); setPage(1); }}
+                >
+                  <option value="all">Semua Pendidikan</option>
+                  {pendidikanList.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="dropdown-arrow" />
+              </div>
+            </div>
+
+            <div className="filter-group">
+              <label>Wilayah</label>
+              <div className="select-box-wrapper">
+                <select
+                  className="dropdown-box"
+                  value={selectedRegion}
+                  onChange={(e) => { setSelectedRegion(e.target.value); setPage(1); }}
+                >
+                  <option value="all">Semua Wilayah</option>
+                  {regionList.map(r => (
+                    <option key={r.id} value={r.id}>{r.kota} - {r.nama}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="dropdown-arrow" />
+              </div>
+            </div>
+
+            <div className="filter-group">
+              <label>Urutan No</label>
+              <button 
+                className={`pill-btn-sort ${sortOrder === 'asc' ? 'asc' : 'desc'}`}
+                onClick={() => {
+                  setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                  setPage(1);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  transition: '0.2s',
+                  border: '1.5px solid #f1f5f9',
+                  background: sortOrder === 'asc' ? '#f0fdf4' : '#fef2f2',
+                  color: sortOrder === 'asc' ? '#166534' : '#991b1b',
+                  height: '38px',
+                  cursor: 'pointer'
+                }}
               >
-                <option value="all">Semua Pendidikan</option>
-                {pendidikanList.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="dropdown-arrow" />
-            </div>
-          </div>
-
-          <div className="filter-group flex-wide">
-            <label>Wilayah</label>
-            <div className="select-box-wrapper">
-              <select
-                className="dropdown-box"
-                value={selectedRegion}
-                onChange={(e) => { setSelectedRegion(e.target.value); setPage(1); }}
-              >
-                <option value="all">Semua Wilayah</option>
-                {regionList.map(r => (
-                  <option key={r.id} value={r.id}>{r.kota} - {r.nama}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="dropdown-arrow" />
+                <ArrowUpDown size={14} />
+                <span>{sortOrder === 'asc' ? 'Terkecil' : 'Terbesar'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1208,28 +1292,35 @@ export default function AdminKatalogPage() {
         /* Toolbar Styles */
         .toolbar-section { 
           background: white; 
-          padding: 24px; 
-          border-radius: 28px; 
+          padding: 30px; 
+          border-radius: 32px; 
           box-shadow: 0 4px 30px rgba(0,0,0,0.02); 
           border: 1px solid #f1f5f9; 
-          margin-bottom: 32px; 
-        }
-        .toolbar-top {
+          margin-bottom: 40px;
           display: flex;
-          gap: 16px;
-          margin-bottom: 24px;
-          align-items: center;
+          flex-direction: column;
+          gap: 24px;
         }
+
+        .toolbar-top-row {
+          display: flex;
+          gap: 20px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
         .search-box { 
-          flex: 1; 
+          flex: 2; 
+          min-width: 300px;
           display: flex; 
           align-items: center; 
           gap: 12px; 
           background: #f8fafc; 
           border: 1.5px solid #f1f5f9; 
-          padding: 14px 22px; 
+          padding: 12px 20px; 
           border-radius: 18px; 
           transition: 0.2s;
+          position: relative;
         }
         .search-box:focus-within {
           background: white;
@@ -1245,24 +1336,54 @@ export default function AdminKatalogPage() {
           font-size: 14px;
           font-weight: 500; 
         }
-        .icon-muted { color: #94a3b8; }
-        
-        .action-buttons { 
-          display: flex; 
-          gap: 10px; 
+        .clear-search-btn-admin {
+          background: #f1f5f9;
+          border: none;
+          border-radius: 50%;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: #64748b;
+          transition: 0.2s;
         }
+        .clear-search-btn-admin:hover {
+          background: #e2e8f0;
+          color: #1e293b;
+        }
+
+        .main-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .export-actions-bar {
+          background: #f8fafc;
+          padding: 16px;
+          border-radius: 20px;
+          border: 1px solid #f1f5f9;
+        }
+        .export-group {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
         .btn-toggle-public {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 20px;
-          height: 48px;
-          border-radius: 16px;
-          font-size: 13px;
+          padding: 0 18px;
+          height: 44px;
+          border-radius: 14px;
+          font-size: 12px;
           font-weight: 700;
           cursor: pointer;
           transition: 0.2s;
-          border: 1px solid #fee2e2;
+          border: 1.5px solid #fee2e2;
           background: #fef2f2;
           color: #ef4444;
         }
@@ -1275,14 +1396,14 @@ export default function AdminKatalogPage() {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 20px;
-          height: 48px;
-          border-radius: 16px;
-          font-size: 13px;
+          padding: 0 18px;
+          height: 44px;
+          border-radius: 14px;
+          font-size: 12px;
           font-weight: 700;
           cursor: pointer;
           transition: 0.2s;
-          border: 1px solid #fce7f3;
+          border: 1.5px solid #fce7f3;
           background: #fdf2f8;
           color: #be185d;
         }
@@ -1290,88 +1411,71 @@ export default function AdminKatalogPage() {
           background: linear-gradient(135deg, #ec4899, #be185d);
           border-color: #be185d;
           color: white;
-          box-shadow: 0 4px 12px rgba(190, 24, 93, 0.3);
-        }
-        .btn-box-love:hover {
-          transform: translateY(-1px);
-        }
-        .btn-export-alt {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 0 20px;
-          height: 48px;
-          border-radius: 16px;
-          background: #1e293b;
-          color: white;
-          border: none;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: 0.2s;
-        }
-        .btn-export-alt:hover {
-          background: #0f172a;
-          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(190, 24, 93, 0.2);
         }
         .btn-export-id-cards {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 20px;
-          height: 48px;
-          border-radius: 16px;
-          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          padding: 0 18px;
+          height: 40px;
+          border-radius: 12px;
+          background: #1e293b;
           color: white;
           border: none;
-          font-size: 13px;
+          font-size: 11px;
           font-weight: 700;
           cursor: pointer;
           transition: 0.2s;
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
         .btn-export-id-cards:hover {
           transform: translateY(-1px);
-          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
-        }
-        .btn-export-id-cards:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-          filter: grayscale(1);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          filter: brightness(1.1);
         }
         .btn-icon-sq {
-          width: 48px;
-          height: 48px;
+          width: 44px;
+          height: 44px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 16px;
-          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          border: 1.5px solid #e2e8f0;
           background: white;
           color: #64748b;
           cursor: pointer;
           transition: 0.2s;
         }
-        .btn-icon-sq:hover {
-          background: #f8fafc;
-          border-color: #cbd5e1;
-        }
 
-        .filters-bar {
+        .filters-container {
           display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .filters-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 800;
+          color: #1e293b;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .filters-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
           gap: 20px;
-          flex-wrap: wrap;
-          padding-top: 20px;
-          border-top: 1px solid #f1f5f9;
         }
         .filter-group {
           display: flex;
           flex-direction: column;
           gap: 8px;
         }
-        .flex-wide { flex: 1; min-width: 200px; }
         .filter-group label {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 800;
           color: #94a3b8;
           text-transform: uppercase;
@@ -1381,51 +1485,49 @@ export default function AdminKatalogPage() {
         .pill-group { 
           display: flex; 
           background: #f1f5f9; 
-          padding: 4px; 
-          border-radius: 14px; 
-          gap: 4px; 
+          padding: 3px; 
+          border-radius: 12px; 
+          gap: 3px; 
         }
         .pill-group button { 
           border: none; 
           background: transparent; 
-          padding: 8px 16px; 
-          border-radius: 10px; 
-          font-size: 12px; 
+          padding: 8px 12px; 
+          border-radius: 9px; 
+          font-size: 11px; 
           font-weight: 700; 
           color: #64748b; 
           cursor: pointer; 
           transition: 0.2s; 
-          white-space: nowrap; 
+          flex: 1;
         }
         .pill-group button.active { 
           background: white; 
           color: #3b82f6; 
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+          box-shadow: 0 2px 6px rgba(0,0,0,0.05); 
         }
 
         .select-box-wrapper { position: relative; display: flex; align-items: center; }
         .dropdown-box { 
           appearance: none;
-          background: #f8fafc; 
+          background: white; 
           border: 1.5px solid #f1f5f9; 
-          padding: 10px 36px 10px 18px; 
-          border-radius: 14px; 
-          font-size: 12px; 
+          padding: 10px 36px 10px 14px; 
+          border-radius: 12px; 
+          font-size: 11px; 
           font-weight: 700; 
           color: #1e293b; 
           cursor: pointer;
           outline: none;
           width: 100%;
-          min-width: 160px;
           transition: 0.2s;
         }
         .dropdown-box:focus {
-          background: white;
           border-color: #3b82f6;
         }
         .dropdown-arrow {
           position: absolute;
-          right: 14px;
+          right: 12px;
           pointer-events: none;
           color: #94a3b8;
         }
@@ -1853,13 +1955,18 @@ export default function AdminKatalogPage() {
         .modal-content { position: relative; max-width: 100%; max-height: 95vh; overflow-y: auto; padding: 10px; }
         .close-modal { position: absolute; top: 0; right: 0; width: 44px; height: 44px; border-radius: 50%; background: white; border: none; font-size: 24px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.1); z-index: 10; display: flex; align-items: center; justify-content: center; }
         
+        @media (max-width: 992px) {
+          .toolbar-top-row { flex-direction: column; align-items: stretch; }
+          .search-box { width: 100%; flex: none; }
+          .main-actions { justify-content: space-between; }
+        }
+
         @media (max-width: 768px) {
           .pdkt-admin-container { padding: 20px; }
-          .toolbar-top { flex-direction: column; }
-          .action-buttons { width: 100%; }
-          .btn-toggle-public, .btn-export-alt { flex: 1; justify-content: center; }
-          .filters-bar { gap: 12px; }
-          .filter-group { width: 100%; }
+          .toolbar-section { padding: 20px; }
+          .export-group { justify-content: center; }
+          .btn-export-id-cards { flex: 1; min-width: 140px; justify-content: center; }
+          .filters-grid { grid-template-columns: 1fr; }
           .grid-section { grid-template-columns: 1fr; }
         }
         .modal-actions-print { margin-top: 20px; display: flex; justify-content: center; gap: 12px; }

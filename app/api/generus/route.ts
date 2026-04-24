@@ -160,6 +160,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
     const kategoriUsia = searchParams.get("kategoriUsia") || "all";
     const pendidikan = searchParams.get("pendidikan") || "all";
+    const sortBy = searchParams.get("sortBy") || "nama";
+    const order = searchParams.get("order") || "asc";
     const offset = (page - 1) * limit;
 
     const finalWhere = buildWhereClause(
@@ -203,6 +205,14 @@ export async function GET(request: NextRequest) {
         panitiaStatus: formPanitiaDanPengurus.dapukan,
     };
 
+    // Sorting logic
+    const orderByClause = [];
+    if (sortBy === "nomorUrut") {
+      orderByClause.push(order === "desc" ? sql`${mandiri.nomorUrut} DESC` : sql`${mandiri.nomorUrut} ASC`);
+    } else {
+      orderByClause.push(order === "desc" ? sql`${generus.nama} DESC` : sql`${generus.nama} ASC`);
+    }
+
     if (isExport) {
       let query = db
         .select(commonSelect)
@@ -220,7 +230,7 @@ export async function GET(request: NextRequest) {
         query = (query as any).leftJoin(mandiri, eq(generus.id, mandiri.generusId));
       }
 
-      const data = await query.where(finalWhere).orderBy(generus.nama);
+      const data = await query.where(finalWhere).orderBy(...orderByClause);
 
       return NextResponse.json(
         { data, total: data.length, page: 1, limit: data.length },
@@ -272,7 +282,7 @@ export async function GET(request: NextRequest) {
     const [data, countResult] = await Promise.all([
       dataQuery
         .where(finalWhere)
-        .orderBy(generus.nama)
+        .orderBy(...orderByClause)
         .limit(limit)
         .offset(offset),
       countQuery.where(finalWhere),

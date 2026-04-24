@@ -26,6 +26,7 @@ export default function MandiriPage() {
    const [total, setTotal] = useState(0);
    const [loading, setLoading] = useState(true);
    const [search, setSearch] = useState("");
+   const [sort, setSort] = useState(""); // "" (default), "asc", "desc"
    const [page, setPage] = useState(1);
    const [userRole, setUserRole] = useState("");
    const [regStatus, setRegStatus] = useState("1");
@@ -34,7 +35,7 @@ export default function MandiriPage() {
    const [isClosed, setIsClosed] = useState(false);
 
 
-   const limit = 20;
+   const limit = 10;
 
    useEffect(() => {
       fetch("/api/profile").then(r => r.json()).then(d => setUserRole(d.role || ""));
@@ -119,7 +120,12 @@ export default function MandiriPage() {
    const fetchData = useCallback(async () => {
       setLoading(true);
       try {
-         const params = new URLSearchParams({ search, page: String(page), limit: String(limit) });
+         const params = new URLSearchParams({ 
+            search, 
+            page: String(page), 
+            limit: String(limit),
+            sort: sort 
+         });
          const res = await fetch(`/api/mandiri?${params}`);
          const json = await res.json();
          setData(json.data || []);
@@ -129,7 +135,12 @@ export default function MandiriPage() {
       } finally {
          setLoading(false);
       }
-   }, [search, page]);
+   }, [search, page, sort]);
+
+
+   useEffect(() => {
+      setPage(1);
+   }, [search, sort]);
 
 
    useEffect(() => {
@@ -206,8 +217,8 @@ export default function MandiriPage() {
 
 
    return (
-      <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
-         <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
+      <div style={{ display: "flex", minHeight: "calc(100vh - 64px)" }}>
+         <div style={{ flex: 1, position: "relative" }}>
             <Topbar title={regTitle || "Usia Mandiri / Persiapan Nikah"} role={userRole} />
 
             <div className="page-content">
@@ -263,10 +274,34 @@ export default function MandiriPage() {
                </div>
 
                <div className="card">
-                  <div className="card-header" style={{ justifyContent: "space-between" }}>
+                  <div className="card-header" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                      <span className="card-title">Daftar Peserta Mandiri ({total})</span>
-                     <div className="search-bar" style={{ maxWidth: "250px" }}>
-                        <input type="text" className="form-control" placeholder="Cari di list ini..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <div className="flex gap-1">
+                           <button 
+                              className={`btn btn-sm ${sort === 'asc' ? 'btn-primary' : 'btn-secondary'}`} 
+                              onClick={() => setSort(sort === 'asc' ? '' : 'asc')}
+                              title="Urutkan No. Terkecil ke Terbesar"
+                           >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14 }}>
+                                 <path d="M12 19V5M5 12l7-7 7 7" />
+                              </svg>
+                              1-9
+                           </button>
+                           <button 
+                              className={`btn btn-sm ${sort === 'desc' ? 'btn-primary' : 'btn-secondary'}`} 
+                              onClick={() => setSort(sort === 'desc' ? '' : 'desc')}
+                              title="Urutkan No. Terbesar ke Terkecil"
+                           >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14 }}>
+                                 <path d="M12 5v14M5 12l7 7 7-7" />
+                              </svg>
+                              9-1
+                           </button>
+                        </div>
+                        <div className="search-bar" style={{ maxWidth: "250px" }}>
+                           <input type="text" className="form-control" placeholder="Cari di list ini..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                        </div>
                      </div>
                   </div>
 
@@ -330,13 +365,59 @@ export default function MandiriPage() {
                         </table>
                      )}
                   </div>
+
+                  {total > limit && (
+                     <div className="card-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderTop: "1px solid #e2e8f0" }}>
+                        <span style={{ fontSize: "13px", color: "#64748b" }}>
+                           Halaman {page} dari {Math.ceil(total / limit)}
+                        </span>
+                        <div style={{ display: "flex", gap: "5px" }}>
+                           <button 
+                              className="btn btn-sm btn-secondary" 
+                              disabled={page === 1} 
+                              onClick={() => setPage(p => Math.max(1, p - 1))}
+                           >
+                              Prev
+                           </button>
+                           {/* Simple pagination: show max 5 page buttons */}
+                           {Array.from({ length: Math.ceil(total / limit) }, (_, i) => i + 1)
+                              .filter(p => p === 1 || p === Math.ceil(total / limit) || Math.abs(p - page) <= 1)
+                              .map((p, i, arr) => (
+                                 <div key={p} style={{ display: "flex", gap: "5px" }}>
+                                    {i > 0 && p - arr[i-1] > 1 && <span style={{ alignSelf: "flex-end", color: "#cbd5e1" }}>...</span>}
+                                    <button 
+                                       className={`btn btn-sm ${page === p ? 'btn-primary' : 'btn-secondary'}`}
+                                       onClick={() => setPage(p)}
+                                    >
+                                       {p}
+                                    </button>
+                                 </div>
+                              ))
+                           }
+                           <button 
+                              className="btn btn-sm btn-secondary" 
+                              disabled={page === Math.ceil(total / limit)} 
+                              onClick={() => setPage(p => Math.min(Math.ceil(total / limit), p + 1))}
+                           >
+                              Next
+                           </button>
+                        </div>
+                     </div>
+                  )}
                </div>
             </div>
          </div>
          <style jsx>{`
-        .badge-blue { background: #eff6ff; color: #1d4ed8; }
-        .badge-gray { background: #f1f5f9; color: #475569; }
-      `}</style>
+            .badge-blue { background: #eff6ff; color: #1d4ed8; }
+            .badge-gray { background: #f1f5f9; color: #475569; }
+            table thead th {
+               position: sticky;
+               top: 0;
+               background: #f8fafc;
+               z-index: 10;
+               box-shadow: 0 1px 0 #e2e8f0;
+            }
+         `}</style>
       </div>
    );
 }

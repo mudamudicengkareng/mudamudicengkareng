@@ -39,7 +39,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const sort = searchParams.get("sort") || ""; // "asc" or "desc"
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Determine order
+    let orderClause: any = desc(mandiri.createdAt);
+    if (sort === "asc") {
+      orderClause = sql`${mandiri.nomorUrut} ASC`;
+    } else if (sort === "desc") {
+      orderClause = sql`${mandiri.nomorUrut} DESC`;
+    }
 
     // Optimized Data Query - Based on MANDIRI table
     const dataQuery = db
@@ -71,7 +81,7 @@ export async function GET(request: NextRequest) {
       .where(whereClause)
       .limit(limit)
       .offset(offset)
-      .orderBy(desc(mandiri.createdAt));
+      .orderBy(orderClause);
 
     // Optimized Count Query
     const countResult = await db
