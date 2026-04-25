@@ -99,17 +99,7 @@ function AbsensiContent() {
 
   useEffect(() => { fetchAbsensi(); }, [fetchAbsensi]);
 
-  // Automatic Refresh (Polling) every 5 seconds if a kegiatan is selected
-  useEffect(() => {
-    if (!selectedKegiatan || scanMode) return;
-    
-    const interval = setInterval(() => {
-      fetchAbsensi();
-    }, 3000);
 
-    
-    return () => clearInterval(interval);
-  }, [selectedKegiatan, fetchAbsensi, scanMode]);
 
 
   // Beep Sounds
