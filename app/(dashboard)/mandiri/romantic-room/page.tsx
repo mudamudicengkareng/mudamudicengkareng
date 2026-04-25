@@ -498,10 +498,14 @@ export default function RomanticRoomPage() {
                         <option value="Tidak Lanjut" ${item.pemilihHasil === 'Tidak Lanjut' ? 'selected' : ''}>Tidak Lanjut</option>
                     </select>
                     <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:#1e293b">Hasil Terpilih (${item.terpilihNama})</label>
-                    <select id="edit_penerima" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 0 0;font-size:13px">
+                    <select id="edit_penerima" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 0 16px;font-size:13px">
                         <option value="Lanjut" ${item.terpilihHasil === 'Lanjut' ? 'selected' : ''}>Lanjut</option>
                         <option value="Ragu-ragu" ${item.terpilihHasil === 'Ragu-ragu' ? 'selected' : ''}>Ragu-ragu</option>
                         <option value="Tidak Lanjut" ${item.terpilihHasil === 'Tidak Lanjut' ? 'selected' : ''}>Tidak Lanjut</option>
+                    </select>
+                    <label style="font-size:11px;font-weight:800;text-transform:uppercase;color:#1e293b">Nomor Room</label>
+                    <select id="edit_room" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e2e8f0;margin:6px 0 0;font-size:13px">
+                        ${allRooms.map(r => `<option value="${r.id}" ${r.id === item.roomId ? 'selected' : ''}>${r.nama}</option>`).join('')}
                     </select>
                 </div>
             `,
@@ -513,6 +517,7 @@ export default function RomanticRoomPage() {
             preConfirm: () => ({
                 hasilPengirim: (document.getElementById('edit_pengirim') as HTMLSelectElement).value,
                 hasilPenerima: (document.getElementById('edit_penerima') as HTMLSelectElement).value,
+                roomId: (document.getElementById('edit_room') as HTMLSelectElement).value,
             })
         });
 

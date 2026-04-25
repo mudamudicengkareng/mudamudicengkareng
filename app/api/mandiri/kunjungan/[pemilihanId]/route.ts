@@ -18,7 +18,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { hasilPengirim, hasilPenerima } = await request.json();
+    const { hasilPengirim, hasilPenerima, roomId } = await request.json();
 
     const valid = ["Lanjut", "Ragu-ragu", "Tidak Lanjut"];
     if (!valid.includes(hasilPengirim) || !valid.includes(hasilPenerima)) {
@@ -28,6 +28,12 @@ export async function PATCH(
     await db.update(mandiriPemilihan)
       .set({ hasilPengirim, hasilPenerima })
       .where(eq(mandiriPemilihan.id, params.pemilihanId));
+
+    if (roomId) {
+      await db.update(mandiriKunjungan)
+        .set({ roomId })
+        .where(eq(mandiriKunjungan.pemilihanId, params.pemilihanId));
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
