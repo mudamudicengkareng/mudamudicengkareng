@@ -5,7 +5,7 @@ import Swal from "sweetalert2";
 import { 
     Heart, MessageSquare, User, Phone, MapPin, ClipboardList, 
     CheckCircle, Star, Download, Sparkles, Send, Timer, 
-    Globe, Plus, Trash2, LogOut, Users, DoorOpen
+    Globe, Plus, Trash2, LogOut, Users, DoorOpen, Search
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -69,6 +69,8 @@ export default function RomanticRoomPage() {
     const [myQueueStatus, setMyQueueStatus] = useState<any>(null);
     const [visitHistory, setVisitHistory] = useState<any[]>([]);
     const [attendanceCount, setAttendanceCount] = useState<number>(0);
+    const [queueSearch, setQueueSearch] = useState("");
+    const [roomSearch, setRoomSearch] = useState("");
     
     const [showSurvey, setShowSurvey] = useState(false);
     const [form, setForm] = useState({
@@ -629,6 +631,17 @@ export default function RomanticRoomPage() {
     if (loading && !myProfile) return <div className="room-loading">Membuka Romantic Room...</div>;
 
     if (isAdmin) {
+        const filteredRooms = allRooms.filter((room) => {
+            const search = roomSearch.toLowerCase();
+            return (
+                room.nama?.toLowerCase().includes(search) ||
+                room.pengirimNama?.toLowerCase().includes(search) ||
+                room.penerimaNama?.toLowerCase().includes(search) ||
+                (room.pengirimNomorUrut || room.pengirimNo || '').toString().includes(search) ||
+                (room.penerimaNomorUrut || room.penerimaNo || '').toString().includes(search)
+            );
+        });
+
         return (
             <div className="romantic-container admin-layout">
                 <header className="room-header-modern">
@@ -673,11 +686,30 @@ export default function RomanticRoomPage() {
                             </div>
                             <span className="count-badge">{allQueue.length} Antrean</span>
                         </div>
+                        <div className="search-bar-container">
+                            <Search size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Cari nama atau nomor..." 
+                                value={queueSearch}
+                                onChange={(e) => setQueueSearch(e.target.value)}
+                            />
+                        </div>
                         <div className="card-body scrollable">
                             {allQueue.length === 0 ? (
                                 <div className="empty-state">Antrean kosong</div>
                             ) : (
-                                allQueue.map((item: any) => (
+                                allQueue
+                                .filter((item: any) => {
+                                    const search = queueSearch.toLowerCase();
+                                    return (
+                                        item.pengirimNama?.toLowerCase().includes(search) ||
+                                        item.penerimaNama?.toLowerCase().includes(search) ||
+                                        (item.pengirimNomorUrut || item.pengirimNo || '').toString().includes(search) ||
+                                        (item.penerimaNomorUrut || item.penerimaNo || '').toString().includes(search)
+                                    );
+                                })
+                                .map((item: any) => (
                                     <div key={item.id} className="queue-item">
                                         <div className="pair-names">
                                             <div className="participant-badge-info">
@@ -723,9 +755,21 @@ export default function RomanticRoomPage() {
                                 </button>
                             </div>
                         </div>
+                        <div className="search-bar-container">
+                            <Search size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Cari nama, nomor peserta, atau nomor ruangan..." 
+                                value={roomSearch}
+                                onChange={(e) => setRoomSearch(e.target.value)}
+                            />
+                        </div>
                         <div className="card-body grid-rooms">
-                            {allRooms.map((room) => (
-                                <div key={room.id} className={`room-tile ${room.status?.toLowerCase()}`}>
+                            {filteredRooms.length === 0 ? (
+                                <div className="empty-state" style={{ gridColumn: '1/-1' }}>Tidak ada ruangan yang ditemukan</div>
+                            ) : (
+                                filteredRooms.map((room) => (
+                                    <div key={room.id} className={`room-tile ${room.status?.toLowerCase()}`}>
                                     <div className="room-top">
                                         <span className="room-name">{room.nama}</span>
                                         {room.status === "Terisi" && room.updatedAt && (
@@ -762,7 +806,8 @@ export default function RomanticRoomPage() {
                                         {room.status}
                                     </div>
                                 </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </div>
 
@@ -885,6 +930,11 @@ export default function RomanticRoomPage() {
                     .header-title svg { color: #f43f5e; }
                     .header-title h3 { font-size: 15px; font-weight: 800; margin: 0; }
                     .count-badge { background: #fef2f2; color: #f43f5e; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+                    
+                    .search-bar-container { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 10px; background: #fff; }
+                    .search-bar-container svg { color: #94a3b8; }
+                    .search-bar-container input { border: none; background: transparent; font-size: 12px; color: #1e293b; width: 100%; outline: none; font-weight: 600; }
+                    .search-bar-container input::placeholder { color: #cbd5e1; }
                     
                     .card-body { padding: 15px; flex: 1; }
                     .scrollable { max-height: 600px; overflow-y: auto; padding-right: 5px; }
