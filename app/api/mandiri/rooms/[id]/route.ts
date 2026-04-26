@@ -88,6 +88,33 @@ export async function PATCH(
                 .where(eq(mandiriRooms.id, roomId));
 
             return NextResponse.json({ success: true });
+        } else if (action === "undo") {
+            // Find current pemilihanId
+            const room = await db.query.mandiriRooms.findFirst({
+                where: eq(mandiriRooms.id, roomId)
+            });
+
+            if (room?.pemilihanId) {
+                // 1. Reset selection status to "Menunggu"
+                await db.update(mandiriPemilihan)
+                    .set({ status: "Menunggu" })
+                    .where(eq(mandiriPemilihan.id, room.pemilihanId));
+
+                // 2. Delete kunjungan records for this specific pemilihan
+                await db.delete(mandiriKunjungan)
+                    .where(eq(mandiriKunjungan.pemilihanId, room.pemilihanId));
+            }
+
+            // 3. Clear the room
+            await db.update(mandiriRooms)
+                .set({ 
+                    pemilihanId: null, 
+                    status: "Kosong",
+                    updatedAt: sql`(datetime('now'))`
+                })
+                .where(eq(mandiriRooms.id, roomId));
+
+            return NextResponse.json({ success: true });
         }
 
         return NextResponse.json({ error: "Aksi tidak valid" }, { status: 400 });

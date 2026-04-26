@@ -5,7 +5,7 @@ import Swal from "sweetalert2";
 import { 
     Heart, MessageSquare, User, Phone, MapPin, ClipboardList, 
     CheckCircle, Star, Download, Sparkles, Send, Timer, 
-    Globe, Plus, Trash2, LogOut, Users, DoorOpen, Search
+    Globe, Plus, Trash2, LogOut, Users, DoorOpen, Search, Undo2
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -431,6 +431,46 @@ export default function RomanticRoomPage() {
         }
     };
 
+    const handleUndoRoom = async (id: string) => {
+        const room = allRooms.find(r => r.id === id);
+        if (!room) return;
+
+        const result = await Swal.fire({
+            title: 'Batalkan Pertemuan?',
+            text: `Kembalikan ${room.pengirimNama} & ${room.penerimaNama} ke kotak antrean?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f43f5e',
+            confirmButtonText: 'Ya, Kembalikan!',
+            cancelButtonText: 'Batal'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`/api/mandiri/rooms/${id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "undo" })
+                });
+                if (res.ok) {
+                    Swal.fire({
+                        title: "Berhasil",
+                        text: "Data berhasil dikembalikan ke antrean.",
+                        icon: "success",
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    fetchData();
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.error || "Gagal melakukan undo");
+                }
+            } catch (err: any) {
+                Swal.fire("Error", err.message, "error");
+            }
+        }
+    };
+
 
 
     const handleSubmitSurvey = async (e: React.FormEvent) => {
@@ -793,9 +833,14 @@ export default function RomanticRoomPage() {
                                                         <span className="room-p-name">{room.penerimaNama}</span>
                                                     </div>
                                                 </div>
-                                                <button className="btn-clear" onClick={() => handleClearRoom(room.id)}>
-                                                    <LogOut size={12} /> Selesaikan
-                                                </button>
+                                                <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
+                                                    <button className="btn-clear" onClick={() => handleClearRoom(room.id)} style={{ flex: 1 }}>
+                                                        <LogOut size={12} /> Selesaikan
+                                                    </button>
+                                                    <button className="btn-undo-room" onClick={() => handleUndoRoom(room.id)} title="Undo / Kembalikan ke Antrean">
+                                                        <Undo2 size={12} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <span className="empty-label">Kosong</span>
@@ -990,7 +1035,10 @@ export default function RomanticRoomPage() {
                     .pair-separator { font-size: 10px; color: #166534; opacity: 0.4; font-weight: 800; }
                     
                     .btn-clear { background: #166534; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; transition: all 0.2s; }
-                    .btn-clear:hover { background: #14532d; transform: scale(1.05); }
+                    .btn-clear:hover { background: #14532d; transform: scale(1.02); }
+                    
+                    .btn-undo-room { background: #64748b; color: white; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+                    .btn-undo-room:hover { background: #475569; transform: scale(1.05); }
                     
                     .room-footer { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 8px; display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
                     .status-dot { width: 6px; height: 6px; border-radius: 50%; }
