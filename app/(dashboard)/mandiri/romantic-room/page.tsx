@@ -700,6 +700,24 @@ export default function RomanticRoomPage() {
     if (loading && !myProfile) return <div className="room-loading">Membuka Romantic Room...</div>;
 
     if (isAdmin) {
+        const sessionStats = {
+            lanjutLanjut: filteredHistory.filter(h => h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Lanjut').length,
+            lanjutTidak: filteredHistory.filter(h => 
+                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Tidak Lanjut') || 
+                (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Lanjut')
+            ).length,
+            tidakTidak: filteredHistory.filter(h => h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Tidak Lanjut').length,
+            raguRagu: filteredHistory.filter(h => h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Ragu-ragu').length,
+            lanjutRagu: filteredHistory.filter(h => 
+                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
+                (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Lanjut')
+            ).length,
+            tidakRagu: filteredHistory.filter(h => 
+                (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
+                (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Tidak Lanjut')
+            ).length,
+        };
+
         const filteredRooms = allRooms.filter((room) => {
             const search = roomSearch.toLowerCase();
             return (
@@ -739,6 +757,53 @@ export default function RomanticRoomPage() {
                                 <div className="ms-content">
                                     <span className="ms-label">Total Record</span>
                                     <span className="ms-value">{visitHistory.length}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="summary-section-container">
+                        <div className="summary-grid-modern">
+                            <div className="summary-card-modern match">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.lanjutLanjut}</span>
+                                    <span className="card-lbl">Lanjut - Lanjut</span>
+                                </div>
+                            </div>
+                            <div className="summary-card-modern one-sided">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.lanjutTidak}</span>
+                                    <span className="card-lbl">Lanjut - Tidak</span>
+                                </div>
+                            </div>
+                            <div className="summary-card-modern reject">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.tidakTidak}</span>
+                                    <span className="card-lbl">Tidak - Tidak</span>
+                                </div>
+                            </div>
+                            <div className="summary-card-modern ragu">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.raguRagu}</span>
+                                    <span className="card-lbl">Ragu - Ragu</span>
+                                </div>
+                            </div>
+                            <div className="summary-card-modern mix">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.lanjutRagu}</span>
+                                    <span className="card-lbl">Lanjut - Ragu</span>
+                                </div>
+                            </div>
+                            <div className="summary-card-modern mix">
+                                <div className="card-dot"></div>
+                                <div className="card-content">
+                                    <span className="card-val">{sessionStats.tidakRagu}</span>
+                                    <span className="card-lbl">Tidak - Ragu</span>
                                 </div>
                             </div>
                         </div>
@@ -1027,6 +1092,21 @@ export default function RomanticRoomPage() {
                     .ms-content { display: flex; flex-direction: column; }
                     .ms-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
                     .ms-value { font-size: 16px; font-weight: 800; color: #1e293b; line-height: 1.2; }
+
+                    .summary-section-container { margin-top: 20px; }
+                    .summary-grid-modern { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+                    .summary-card-modern { background: white; padding: 12px 16px; border-radius: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; transition: all 0.2s; position: relative; overflow: hidden; }
+                    .summary-card-modern:hover { transform: translateY(-2px); border-color: #fecdd3; }
+                    .card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+                    .match .card-dot { background: #16a34a; box-shadow: 0 0 8px rgba(22, 163, 74, 0.4); }
+                    .one-sided .card-dot { background: #d97706; box-shadow: 0 0 8px rgba(217, 119, 6, 0.4); }
+                    .reject .card-dot { background: #dc2626; box-shadow: 0 0 8px rgba(220, 38, 38, 0.4); }
+                    .ragu .card-dot { background: #6366f1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.4); }
+                    .mix .card-dot { background: #94a3b8; box-shadow: 0 0 8px rgba(148, 163, 184, 0.4); }
+                    
+                    .card-content { display: flex; flex-direction: column; }
+                    .card-val { font-size: 18px; font-weight: 900; color: #1e293b; line-height: 1; }
+                    .card-lbl { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
 
                     .admin-grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
                     .admin-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); transition: all 0.3s; }

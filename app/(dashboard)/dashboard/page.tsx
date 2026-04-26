@@ -36,6 +36,10 @@ async function getStats(session: any) {
       return extra ? and(...base, extra) : and(...base);
     };
 
+    const desaFilterPanitia = (session.role === "desa" || (session.role === "tim_pnkb" && !session.kelompokId)) && session.desaId ? eq(formPanitiaDanPengurus.mandiriDesaId, session.desaId) : undefined;
+    const kelompokFilterPanitia = (session.role === "kelompok" || (session.role === "tim_pnkb" && session.kelompokId)) && session.kelompokId ? eq(formPanitiaDanPengurus.mandiriKelompokId, session.kelompokId) : undefined;
+    const panitiaFilter = desaFilterPanitia || kelompokFilterPanitia;
+
     const [
       generusCount,
       kegiatanCount,
@@ -58,8 +62,7 @@ async function getStats(session: any) {
       mandiriHadirLaki,
       mandiriHadirPerempuan,
       mandiriHadirPanitia,
-      mandiriTidakHadirPeserta,
-      mandiriTidakHadirPanitia,
+      mandiriTotalPanitia,
     ] = await Promise.all([
       db.select({ count: sql<number>`count(DISTINCT ${generus.id})` }).from(generus).leftJoin(users, eq(generus.id, users.generusId)).where(finalGenerusFilter),
       db.select({ count: sql<number>`count(*)` }).from(kegiatan).where(kegiatanFilter),
@@ -117,8 +120,10 @@ async function getStats(session: any) {
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiriAbsensi)
         .innerJoin(mandiri, eq(mandiriAbsensi.generusId, mandiri.generusId))
+        .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
         .where(and(
           attendanceFilter(),
+          generusFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Peserta Laki-laki (peserta, bukan panitia)
@@ -128,6 +133,7 @@ async function getStats(session: any) {
         .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
         .where(and(
           attendanceFilter(eq(generus.jenisKelamin, "L")),
+          generusFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Peserta Perempuan (peserta, bukan panitia)
@@ -137,30 +143,18 @@ async function getStats(session: any) {
         .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
         .where(and(
           attendanceFilter(eq(generus.jenisKelamin, "P")),
+          generusFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Panitia
       db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
         .from(mandiriAbsensi)
         .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
-        .where(attendanceFilter()),
-      // Tidak Hadir Peserta (terdaftar di mandiri, bukan panitia, tidak ada di absensi kegiatan ini)
-      db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
-        .from(mandiri)
-        .where(and(
-          sql`${mandiri.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`,
-          currentActivityId
-            ? sql`${mandiri.generusId} NOT IN (SELECT generus_id FROM mandiri_absensi WHERE kegiatan_id = ${currentActivityId} AND keterangan = 'hadir')`
-            : sql`1=1`
-        )),
-      // Tidak Hadir Panitia (terdaftar di formPanitiaDanPengurus, tidak ada di absensi kegiatan ini)
-      db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
+        .where(and(attendanceFilter(), panitiaFilter)),
+      // Total Panitia
+      db.select({ count: sql<number>`count(*)` })
         .from(formPanitiaDanPengurus)
-        .where(
-          currentActivityId
-            ? sql`${formPanitiaDanPengurus.generusId} IS NOT NULL AND ${formPanitiaDanPengurus.generusId} NOT IN (SELECT generus_id FROM mandiri_absensi WHERE kegiatan_id = ${currentActivityId} AND keterangan = 'hadir')`
-            : sql`1=1`
-        ),
+        .where(panitiaFilter),
     ]);
 
     return {
@@ -185,8 +179,9 @@ async function getStats(session: any) {
       mandiriHadirLaki: Number(mandiriHadirLaki[0]?.count || 0),
       mandiriHadirPerempuan: Number(mandiriHadirPerempuan[0]?.count || 0),
       mandiriHadirPanitia: Number(mandiriHadirPanitia[0]?.count || 0),
-      mandiriTidakHadirPeserta: Number(mandiriTidakHadirPeserta[0]?.count || 0),
-      mandiriTidakHadirPanitia: Number(mandiriTidakHadirPanitia[0]?.count || 0),
+      mandiriTotalPanitia: Number(mandiriTotalPanitia[0]?.count || 0),
+      mandiriTidakHadirPeserta: Math.max(0, Number(mandiriCount[0].count) - Number(mandiriHadirPeserta[0]?.count || 0)),
+      mandiriTidakHadirPanitia: Math.max(0, Number(mandiriTotalPanitia[0]?.count || 0) - Number(mandiriHadirPanitia[0]?.count || 0)),
     };
   } catch (error) {
     console.error("Dashboard DB fetch error:", error);
@@ -228,6 +223,50 @@ export default async function DashboardPage() {
   );
 }
 
+function AttendanceChart({ label, present, absent }: { label: string; present: number; absent: number }) {
+  const total = present + absent;
+  const presentPercent = total > 0 ? (present / total) * 100 : 0;
+
+  return (
+    <div className="card" style={{ height: '100%' }}>
+      <div className="card-header">
+        <span className="card-title">Perbandingan Kehadiran {label}</span>
+      </div>
+      <div className="card-body">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', height: '100%' }}>
+          <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+            <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+              <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#f3f4f6" strokeWidth="4"></circle>
+              <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#10b981" strokeWidth="4" 
+                strokeDasharray={`${presentPercent} ${100 - presentPercent}`} strokeDashoffset="0"></circle>
+            </svg>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{Math.round(presentPercent)}%</div>
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#10b981' }}></div>
+              <div style={{ flex: 1, fontSize: '13px' }}>Hadir</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{present}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#ef4444' }}></div>
+              <div style={{ flex: 1, fontSize: '13px' }}>Tidak Hadir</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{absent}</div>
+            </div>
+            <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Total Terdaftar</div>
+              <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{total}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ role, stats }: { role: string; stats: any }) {
   if (role === "admin_romantic_room") {
     return (
@@ -238,8 +277,11 @@ function AdminDashboard({ role, stats }: { role: string; stats: any }) {
           <StatCard icon="user-check" color="indigo" label="Kehadiran Peserta Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
           <StatCard icon="user-check" color="pink" label="Kehadiran Peserta Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
           <StatCard icon="users" color="emerald" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
-          <StatCard icon="user-x" color="orange" label="Peserta Tidak Hadir" value={stats?.mandiriTidakHadirPeserta ?? 0} href="/mandiri/absensi" />
-          <StatCard icon="user-x" color="red" label="Panitia Tidak Hadir" value={stats?.mandiriTidakHadirPanitia ?? 0} href="/mandiri/absensi" />
+        </div>
+
+        <div className="responsive-grid-2" style={{ marginBottom: "2.5rem" }}>
+          <AttendanceChart label="Peserta" present={stats?.mandiriHadirPeserta ?? 0} absent={stats?.mandiriTidakHadirPeserta ?? 0} />
+          <AttendanceChart label="Panitia" present={stats?.mandiriHadirPanitia ?? 0} absent={stats?.mandiriTidakHadirPanitia ?? 0} />
         </div>
       </div>
     );
@@ -247,17 +289,6 @@ function AdminDashboard({ role, stats }: { role: string; stats: any }) {
 
   return (
     <div>
-      {/* Kehadiran Mandiri Section */}
-      <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Ringkasan Kehadiran Mandiri</h3>
-      <div className="stats-grid" style={{ marginBottom: "2.5rem" }}>
-        <StatCard icon="check-square" color="blue" label="Total Kehadiran Peserta" value={stats?.mandiriHadirPeserta ?? 0} href="/mandiri/absensi" />
-        <StatCard icon="user-check" color="indigo" label="Kehadiran Peserta Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
-        <StatCard icon="user-check" color="pink" label="Kehadiran Peserta Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
-        <StatCard icon="users" color="emerald" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
-        <StatCard icon="user-x" color="orange" label="Peserta Tidak Hadir" value={stats?.mandiriTidakHadirPeserta ?? 0} href="/mandiri/absensi" />
-        <StatCard icon="user-x" color="red" label="Panitia Tidak Hadir" value={stats?.mandiriTidakHadirPanitia ?? 0} href="/mandiri/absensi" />
-      </div>
-
       {/* Generus & Pendidikan Section */}
       <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Data Generus & Pendidikan</h3>
       <div className="stats-grid" style={{ marginBottom: "2.5rem" }}>
