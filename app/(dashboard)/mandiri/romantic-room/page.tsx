@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
-import { 
-    Heart, MessageSquare, User, Phone, MapPin, ClipboardList, 
-    CheckCircle, Star, Download, Sparkles, Send, Timer, 
+import {
+    Heart, MessageSquare, User, Phone, MapPin, ClipboardList,
+    CheckCircle, Star, Download, Sparkles, Send, Timer,
     Globe, Plus, Trash2, LogOut, Users, DoorOpen, Search, Undo2
 } from "lucide-react";
 import jsPDF from "jspdf";
@@ -18,16 +18,16 @@ function RoomTimer({ startTime }: { startTime: string }) {
     useEffect(() => {
         const calculateTime = () => {
             if (!startTime) return;
-            
+
             // SQLite datetime('now') returns "YYYY-MM-DD HH:mm:ss" in UTC
             // We need to format it to "YYYY-MM-DDTHH:mm:ssZ" for JS to parse it reliably as UTC
-            const isoString = startTime.includes(' ') 
-                ? startTime.replace(' ', 'T') + 'Z' 
+            const isoString = startTime.includes(' ')
+                ? startTime.replace(' ', 'T') + 'Z'
                 : startTime;
-            
+
             const start = new Date(isoString).getTime();
             const now = new Date().getTime();
-            
+
             // Adjust for possible timezone difference if needed, but usually datetime('now') in SQLite matches system
             // 15 minutes in milliseconds
             const limit = 15 * 60 * 1000;
@@ -71,12 +71,12 @@ export default function RomanticRoomPage() {
     const [attendanceCount, setAttendanceCount] = useState<number>(0);
     const [queueSearch, setQueueSearch] = useState("");
     const [roomSearch, setRoomSearch] = useState("");
-    
+
     const [allCities, setAllCities] = useState<string[]>([]);
     const [allVillages, setAllVillages] = useState<any[]>([]);
     const [cityFilter, setCityFilter] = useState("Semua Kota");
     const [villageFilter, setVillageFilter] = useState("Semua Desa");
-    
+
     const [showSurvey, setShowSurvey] = useState(false);
     const [form, setForm] = useState({
         namaPnkb: "",
@@ -103,7 +103,7 @@ export default function RomanticRoomPage() {
             const h = getAuthHeaders();
             const profRes = await fetch("/api/profile", { headers: h });
             const profJson = await profRes.json();
-            
+
             if (profRes.status === 401) {
                 // If not authorized as independent OR session, redirect back
                 Swal.fire("Akses Ditolak", "Silakan login atau masukkan Nomor Peserta di Katalog terlebih dahulu.", "error").then(() => {
@@ -119,7 +119,7 @@ export default function RomanticRoomPage() {
             // Fetch Rooms
             const roomsRes = await fetch("/api/mandiri/rooms", { headers: h });
             const roomsJson = await roomsRes.json();
-            const sortedRooms = Array.isArray(roomsJson) 
+            const sortedRooms = Array.isArray(roomsJson)
                 ? [...roomsJson].sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' }))
                 : [];
             setAllRooms(sortedRooms);
@@ -156,11 +156,11 @@ export default function RomanticRoomPage() {
                 }
             } else {
                 // Check if user is in a room or queue
-                const myRooms = (Array.isArray(roomsJson) ? roomsJson : []).find((r: any) => 
-                    r.pemilihanId && r.status === "Terisi" && 
+                const myRooms = (Array.isArray(roomsJson) ? roomsJson : []).find((r: any) =>
+                    r.pemilihanId && r.status === "Terisi" &&
                     (r.pengirimNama === profJson.nama || r.penerimaNama === profJson.nama)
                 );
-                
+
                 if (myRooms) {
                     setMyRoom(myRooms);
                     setMyQueueStatus(null);
@@ -189,7 +189,7 @@ export default function RomanticRoomPage() {
         return () => clearInterval(interval);
     }, []);
 
-   
+
     const handleCreateRoom = async () => {
         const { value: roomName } = await Swal.fire({
             title: 'Buat Ruangan Baru',
@@ -429,10 +429,10 @@ export default function RomanticRoomPage() {
 
         if (formValues) {
             try {
-                await fetch(`/api/mandiri/rooms/${id}`, { 
+                await fetch(`/api/mandiri/rooms/${id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         action: "clear",
                         hasilPengirim: formValues.hasilPengirim,
                         hasilPenerima: formValues.hasilPenerima
@@ -516,7 +516,7 @@ export default function RomanticRoomPage() {
         doc.setFontSize(22);
         doc.setTextColor(244, 63, 94);
         doc.text("Laporan Pertemuan PDKT", 105, 20, { align: "center" });
-        
+
         const tableData = [
             ["1. Nama PNKB", form.namaPnkb || "-"],
             ["2. No. HP PNKB", form.noHpPnkb || "-"],
@@ -705,7 +705,7 @@ export default function RomanticRoomPage() {
             } else {
                 const res1 = item.pemilihHasil;
                 const res2 = item.terpilihHasil;
-                
+
                 if (resultFilter === "Lanjut - Lanjut") {
                     matchResult = (res1 === "Lanjut" && res2 === "Lanjut");
                 } else if (resultFilter === "Lanjut - Tidak Lanjut") {
@@ -733,7 +733,7 @@ export default function RomanticRoomPage() {
         if (villageFilter !== "Semua Desa") {
             matchVillage = (item.pemilihDesa === villageFilter || item.terpilihDesa === villageFilter);
         }
-        
+
         return matchResult && matchCity && matchVillage;
     });
 
@@ -742,18 +742,18 @@ export default function RomanticRoomPage() {
     if (isAdmin) {
         const sessionStats = {
             lanjutLanjut: visitHistory.filter(h => h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Lanjut').length,
-            lanjutTidak: visitHistory.filter(h => 
-                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Tidak Lanjut') || 
+            lanjutTidak: visitHistory.filter(h =>
+                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Tidak Lanjut') ||
                 (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Lanjut')
             ).length,
             tidakTidak: visitHistory.filter(h => h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Tidak Lanjut').length,
             raguRagu: visitHistory.filter(h => h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Ragu-ragu').length,
-            lanjutRagu: visitHistory.filter(h => 
-                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
+            lanjutRagu: visitHistory.filter(h =>
+                (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Ragu-ragu') ||
                 (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Lanjut')
             ).length,
-            tidakRagu: visitHistory.filter(h => 
-                (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
+            tidakRagu: visitHistory.filter(h =>
+                (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Ragu-ragu') ||
                 (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Tidak Lanjut')
             ).length,
         };
@@ -862,9 +862,9 @@ export default function RomanticRoomPage() {
                         </div>
                         <div className="search-bar-container">
                             <Search size={16} />
-                            <input 
-                                type="text" 
-                                placeholder="Cari nama atau nomor..." 
+                            <input
+                                type="text"
+                                placeholder="Cari nama atau nomor..."
                                 value={queueSearch}
                                 onChange={(e) => setQueueSearch(e.target.value)}
                             />
@@ -874,68 +874,68 @@ export default function RomanticRoomPage() {
                                 <div className="empty-state">Antrean kosong</div>
                             ) : (
                                 allQueue
-                                .filter((item: any) => {
-                                    const search = queueSearch.toLowerCase();
-                                    return (
-                                        item.pengirimNama?.toLowerCase().includes(search) ||
-                                        item.penerimaNama?.toLowerCase().includes(search) ||
-                                        (item.pengirimNomorUrut || item.pengirimNo || '').toString().includes(search) ||
-                                        (item.penerimaNomorUrut || item.penerimaNo || '').toString().includes(search)
-                                    );
-                                })
-                                .map((item: any) => (
-                                    <div key={item.id} className="queue-item">
-                                        <div className="pair-names">
-                                            {/* Caller */}
-                                            <div className="participant-row caller">
-                                                <div className="p-role-tag caller">Pemanggilan</div>
-                                                <div className="p-main-box">
-                                                    <span className="p-number-badge">{item.pengirimNomorUrut || item.pengirimNo || '-'}</span>
-                                                    <span className="p-name">{item.pengirimNama}</span>
-                                                </div>
-                                                <div className="p-meta-list">
-                                                    <div className="p-sub-info">
-                                                        <MapPin size={10} /> <span>{item.pengirimKota || '-'} / {item.pengirimDesa || '-'}</span>
+                                    .filter((item: any) => {
+                                        const search = queueSearch.toLowerCase();
+                                        return (
+                                            item.pengirimNama?.toLowerCase().includes(search) ||
+                                            item.penerimaNama?.toLowerCase().includes(search) ||
+                                            (item.pengirimNomorUrut || item.pengirimNo || '').toString().includes(search) ||
+                                            (item.penerimaNomorUrut || item.penerimaNo || '').toString().includes(search)
+                                        );
+                                    })
+                                    .map((item: any) => (
+                                        <div key={item.id} className="queue-item">
+                                            <div className="pair-names">
+                                                {/* Caller */}
+                                                <div className="participant-row caller">
+                                                    <div className="p-role-tag caller">Pemanggil</div>
+                                                    <div className="p-main-box">
+                                                        <span className="p-number-badge">{item.pengirimNomorUrut || item.pengirimNo || '-'}</span>
+                                                        <span className="p-name">{item.pengirimNama}</span>
                                                     </div>
-                                                    <div className="p-sub-info">
-                                                        <Phone size={10} /> <span>{item.pengirimWa || '-'}</span>
+                                                    <div className="p-meta-list">
+                                                        <div className="p-sub-info">
+                                                            <MapPin size={10} /> <span>{item.pengirimKota || '-'} / {item.pengirimDesa || '-'}</span>
+                                                        </div>
+                                                        <div className="p-sub-info">
+                                                            <Phone size={10} /> <span>{item.pengirimWa || '-'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="heart-divider">
+                                                    <div className="line"></div>
+                                                    <Heart size={14} fill="#f43f5e" color="#f43f5e" />
+                                                    <div className="line"></div>
+                                                </div>
+
+                                                {/* Called */}
+                                                <div className="participant-row called">
+                                                    <div className="p-role-tag called">Dipanggil</div>
+                                                    <div className="p-main-box">
+                                                        <span className="p-number-badge">{item.penerimaNomorUrut || item.penerimaNo || '-'}</span>
+                                                        <span className="p-name">{item.penerimaNama}</span>
+                                                    </div>
+                                                    <div className="p-meta-list">
+                                                        <div className="p-sub-info">
+                                                            <span>{item.penerimaKota || '-'} / {item.penerimaDesa || '-'}</span> <MapPin size={10} />
+                                                        </div>
+                                                        <div className="p-sub-info">
+                                                            <span>{item.penerimaWa || '-'}</span> <Phone size={10} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <div className="heart-divider">
-                                                <div className="line"></div>
-                                                <Heart size={14} fill="#f43f5e" color="#f43f5e" />
-                                                <div className="line"></div>
-                                            </div>
-
-                                            {/* Called */}
-                                            <div className="participant-row called">
-                                                <div className="p-role-tag called">Dipanggil</div>
-                                                <div className="p-main-box">
-                                                    <span className="p-number-badge">{item.penerimaNomorUrut || item.penerimaNo || '-'}</span>
-                                                    <span className="p-name">{item.penerimaNama}</span>
-                                                </div>
-                                                <div className="p-meta-list">
-                                                    <div className="p-sub-info">
-                                                        <span>{item.penerimaKota || '-'} / {item.penerimaDesa || '-'}</span> <MapPin size={10} />
-                                                    </div>
-                                                    <div className="p-sub-info">
-                                                        <span>{item.penerimaWa || '-'}</span> <Phone size={10} />
-                                                    </div>
-                                                </div>
+                                            <div className="queue-actions">
+                                                <button className="btn-validate" onClick={() => handleAssignToRoom(item.id, item.pengirimNama, item.penerimaNama)}>
+                                                    Validasi & Masuk Room
+                                                </button>
+                                                <button className="btn-delete-queue" onClick={() => handleDeleteQueue(item)} title="Hapus Antrean">
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="queue-actions">
-                                            <button className="btn-validate" onClick={() => handleAssignToRoom(item.id, item.pengirimNama, item.penerimaNama)}>
-                                                Validasi & Masuk Room
-                                            </button>
-                                            <button className="btn-delete-queue" onClick={() => handleDeleteQueue(item)} title="Hapus Antrean">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                    ))
                             )}
                         </div>
                     </div>
@@ -961,9 +961,9 @@ export default function RomanticRoomPage() {
                         </div>
                         <div className="search-bar-container">
                             <Search size={16} />
-                            <input 
-                                type="text" 
-                                placeholder="Cari nama, nomor peserta, atau nomor ruangan..." 
+                            <input
+                                type="text"
+                                placeholder="Cari nama, nomor peserta, atau nomor ruangan..."
                                 value={roomSearch}
                                 onChange={(e) => setRoomSearch(e.target.value)}
                             />
@@ -974,47 +974,47 @@ export default function RomanticRoomPage() {
                             ) : (
                                 filteredRooms.map((room) => (
                                     <div key={room.id} className={`room-tile ${room.status?.toLowerCase()}`}>
-                                    <div className="room-top">
-                                        <span className="room-name">{room.nama}</span>
-                                        {room.status === "Terisi" && room.updatedAt && (
-                                            <RoomTimer startTime={room.updatedAt} />
-                                        )}
-                                        <button className="btn-delete-room" onClick={() => handleDeleteRoom(room.id)}>
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                    <div className="room-middle">
-                                        {room.status === "Terisi" ? (
-                                            <div className="occupied-info">
-                                                <div className="occupied-pair">
-                                                    <div className="pair-member">
-                                                        <span className="room-p-number">{room.pengirimNomorUrut || room.pengirimNo || '-'}</span>
-                                                        <span className="room-p-name">{room.pengirimNama}</span>
+                                        <div className="room-top">
+                                            <span className="room-name">{room.nama}</span>
+                                            {room.status === "Terisi" && room.updatedAt && (
+                                                <RoomTimer startTime={room.updatedAt} />
+                                            )}
+                                            <button className="btn-delete-room" onClick={() => handleDeleteRoom(room.id)}>
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="room-middle">
+                                            {room.status === "Terisi" ? (
+                                                <div className="occupied-info">
+                                                    <div className="occupied-pair">
+                                                        <div className="pair-member">
+                                                            <span className="room-p-number">{room.pengirimNomorUrut || room.pengirimNo || '-'}</span>
+                                                            <span className="room-p-name">{room.pengirimNama}</span>
+                                                        </div>
+                                                        <span className="pair-separator">&</span>
+                                                        <div className="pair-member">
+                                                            <span className="room-p-number">{room.penerimaNomorUrut || room.penerimaNo || '-'}</span>
+                                                            <span className="room-p-name">{room.penerimaNama}</span>
+                                                        </div>
                                                     </div>
-                                                    <span className="pair-separator">&</span>
-                                                    <div className="pair-member">
-                                                        <span className="room-p-number">{room.penerimaNomorUrut || room.penerimaNo || '-'}</span>
-                                                        <span className="room-p-name">{room.penerimaNama}</span>
+                                                    <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
+                                                        <button className="btn-clear" onClick={() => handleClearRoom(room.id)} style={{ flex: 1 }}>
+                                                            <LogOut size={12} /> Selesaikan
+                                                        </button>
+                                                        <button className="btn-undo-room" onClick={() => handleUndoRoom(room.id)} title="Undo / Kembalikan ke Antrean">
+                                                            <Undo2 size={12} />
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
-                                                    <button className="btn-clear" onClick={() => handleClearRoom(room.id)} style={{ flex: 1 }}>
-                                                        <LogOut size={12} /> Selesaikan
-                                                    </button>
-                                                    <button className="btn-undo-room" onClick={() => handleUndoRoom(room.id)} title="Undo / Kembalikan ke Antrean">
-                                                        <Undo2 size={12} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <span className="empty-label">Kosong</span>
-                                        )}
+                                            ) : (
+                                                <span className="empty-label">Kosong</span>
+                                            )}
+                                        </div>
+                                        <div className="room-footer">
+                                            <span className={`status-dot ${room.status?.toLowerCase()}`}></span>
+                                            {room.status}
+                                        </div>
                                     </div>
-                                    <div className="room-footer">
-                                        <span className={`status-dot ${room.status?.toLowerCase()}`}></span>
-                                        {room.status}
-                                    </div>
-                                </div>
                                 ))
                             )}
                         </div>
@@ -1030,8 +1030,8 @@ export default function RomanticRoomPage() {
                                 <button className="btn-export-excel" onClick={handleExportExcel} style={{ marginRight: '10px', background: '#16a34a' }}>
                                     <Download size={16} /> Export Excel
                                 </button>
-                                
-                                <select 
+
+                                <select
                                     className="dropdown-peserta"
                                     value={cityFilter}
                                     onChange={(e) => {
@@ -1045,7 +1045,7 @@ export default function RomanticRoomPage() {
                                     ))}
                                 </select>
 
-                                <select 
+                                <select
                                     className="dropdown-peserta"
                                     value={villageFilter}
                                     onChange={(e) => setVillageFilter(e.target.value)}
@@ -1059,7 +1059,7 @@ export default function RomanticRoomPage() {
                                     }
                                 </select>
 
-                                <select 
+                                <select
                                     className="dropdown-peserta"
                                     value={resultFilter}
                                     onChange={(e) => setResultFilter(e.target.value)}
@@ -1110,12 +1110,11 @@ export default function RomanticRoomPage() {
                                                 <td>{item.pemilihStatus}</td>
                                                 <td>
                                                     {item.pemilihHasil && (
-                                                        <span className={`result-badge ${
-                                                            item.pemilihHasil === 'Lanjut' ? 'badge-success' : 
-                                                            item.pemilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
-                                                            item.pemilihHasil === 'Menunggu' ? 'badge-info' :
-                                                            'badge-danger'
-                                                        }`}>
+                                                        <span className={`result-badge ${item.pemilihHasil === 'Lanjut' ? 'badge-success' :
+                                                            item.pemilihHasil === 'Ragu-ragu' ? 'badge-warning' :
+                                                                item.pemilihHasil === 'Menunggu' ? 'badge-info' :
+                                                                    'badge-danger'
+                                                            }`}>
                                                             {item.pemilihHasil}
                                                         </span>
                                                     )}
@@ -1127,12 +1126,11 @@ export default function RomanticRoomPage() {
                                                 <td>{item.terpilihStatus}</td>
                                                 <td>
                                                     {item.terpilihHasil && (
-                                                        <span className={`result-badge ${
-                                                            item.terpilihHasil === 'Lanjut' ? 'badge-success' : 
-                                                            item.terpilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
-                                                            item.terpilihHasil === 'Menunggu' ? 'badge-info' :
-                                                            'badge-danger'
-                                                        }`}>
+                                                        <span className={`result-badge ${item.terpilihHasil === 'Lanjut' ? 'badge-success' :
+                                                            item.terpilihHasil === 'Ragu-ragu' ? 'badge-warning' :
+                                                                item.terpilihHasil === 'Menunggu' ? 'badge-info' :
+                                                                    'badge-danger'
+                                                            }`}>
                                                             {item.terpilihHasil}
                                                         </span>
                                                     )}
@@ -1146,7 +1144,7 @@ export default function RomanticRoomPage() {
                                                     <span className="visit-count">{item.roomNama}</span>
                                                 </td>
                                                 <td className="text-center">
-                                                    <div style={{display:'flex',gap:'4px',justifyContent:'center'}}>
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                                                         {!item.isQueue && (
                                                             <>
                                                                 <button className="btn-act btn-edit" onClick={() => handleEditRecord(item)} title="Edit Hasil">✏️</button>
@@ -1453,11 +1451,11 @@ export default function RomanticRoomPage() {
                                 <div className="form-grid">
                                     <div className="form-group">
                                         <label>Nama PNKB</label>
-                                        <input value={form.namaPnkb} onChange={e => setForm({...form, namaPnkb: e.target.value})} placeholder="Nama pendamping..." />
+                                        <input value={form.namaPnkb} onChange={e => setForm({ ...form, namaPnkb: e.target.value })} placeholder="Nama pendamping..." />
                                     </div>
                                     <div className="form-group">
                                         <label>No. HP PNKB</label>
-                                        <input value={form.noHpPnkb} onChange={e => setForm({...form, noHpPnkb: e.target.value})} placeholder="08xxxx" />
+                                        <input value={form.noHpPnkb} onChange={e => setForm({ ...form, noHpPnkb: e.target.value })} placeholder="08xxxx" />
                                     </div>
                                     <div className="form-group span-2">
                                         <label>Lawan Bicara</label>
@@ -1467,11 +1465,11 @@ export default function RomanticRoomPage() {
                                         <label>Tanggapan Anda</label>
                                         <div className="tanggapan-options">
                                             {["Baik", "Humble", "Pendiam", "Penyabar", "Friendly"].map(opt => (
-                                                <button 
+                                                <button
                                                     key={opt}
-                                                    type="button" 
-                                                    className={form.tanggapan === opt ? "active" : ""} 
-                                                    onClick={() => setForm({...form, tanggapan: opt})}
+                                                    type="button"
+                                                    className={form.tanggapan === opt ? "active" : ""}
+                                                    onClick={() => setForm({ ...form, tanggapan: opt })}
                                                 >
                                                     {opt}
                                                 </button>
@@ -1482,7 +1480,7 @@ export default function RomanticRoomPage() {
                                         <label>Hasil Pertemuan</label>
                                         <div className="radio-group-pdkt">
                                             {["Lanjut", "Ragu-ragu", "Tidak Lanjut"].map(opt => (
-                                                <button key={opt} type="button" className={form.rekomendasi === opt ? "active" : ""} onClick={() => setForm({...form, rekomendasi: opt})}>{opt}</button>
+                                                <button key={opt} type="button" className={form.rekomendasi === opt ? "active" : ""} onClick={() => setForm({ ...form, rekomendasi: opt })}>{opt}</button>
                                             ))}
                                         </div>
                                     </div>
@@ -1543,7 +1541,7 @@ export default function RomanticRoomPage() {
                 <h2>Sedang Dalam Antrean</h2>
                 <p>Anda sudah memilih <b>{myQueueStatus.penerimaNama || "Peserta"}</b>. Mohon tunggu admin melakukan validasi untuk masuk keruangan pertemuan.</p>
                 <div className="queue-badge">Status: Menunggu Antrean</div>
-                
+
                 <style jsx>{`
                     .romantic-container { padding: 40px 20px; max-width: 800px; margin: 0 auto; min-height: 100vh; }
                     .empty-state-view { text-align: center; padding: 100px 40px; background: white; border-radius: 20px; border: 2px dashed #fecdd3; display: flex; flex-direction: column; align-items: center; margin-top: 40px; }
