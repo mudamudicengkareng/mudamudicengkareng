@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mandiriKunjungan, generus, mandiriPemilihan, mandiriRooms, formPanitiaDanPengurus, mandiri } from "@/lib/schema";
+import { mandiriKunjungan, generus, mandiriPemilihan, mandiriRooms, formPanitiaDanPengurus, mandiri, mandiriDesa } from "@/lib/schema";
 import { eq, sql, desc, isNotNull, and, or } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import crypto from "crypto";
@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
         const m2 = aliasedTable(mandiri, "m2");
         const pan1 = aliasedTable(formPanitiaDanPengurus, "pan1");
         const pan2 = aliasedTable(formPanitiaDanPengurus, "pan2");
+        const md1 = aliasedTable(mandiriDesa, "md1");
+        const md2 = aliasedTable(mandiriDesa, "md2");
 
         // Get detailed pairing history
         const history = await db.select({
@@ -32,12 +34,16 @@ export async function GET(request: NextRequest) {
             pemilihNama: g1.nama,
             pemilihStatus: sql<string>`CASE WHEN ${pan1.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
             pemilihHasil: mandiriPemilihan.hasilPengirim,
+            pemilihKota: md1.kota,
+            pemilihDesa: md1.nama,
             // Terpilih (Penerima)
             terpilihNomorUrut: m2.nomorUrut,
             terpilihNo: g2.nomorUnik,
             terpilihNama: g2.nama,
             terpilihStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
             terpilihHasil: mandiriPemilihan.hasilPenerima,
+            terpilihKota: md2.kota,
+            terpilihDesa: md2.nama,
             pemilihanId: mandiriKunjungan.pemilihanId
         })
         .from(mandiriKunjungan)
@@ -53,6 +59,9 @@ export async function GET(request: NextRequest) {
         // Panitia Status
         .leftJoin(pan1, eq(g1.id, pan1.generusId))
         .leftJoin(pan2, eq(g2.id, pan2.generusId))
+        // Join MandiriDesa using COALESCE to check both generus and panitia table
+        .leftJoin(md1, eq(sql`COALESCE(${g1.mandiriDesaId}, ${pan1.mandiriDesaId})`, md1.id))
+        .leftJoin(md2, eq(sql`COALESCE(${g2.mandiriDesaId}, ${pan2.mandiriDesaId})`, md2.id))
         .where(isNotNull(mandiriKunjungan.pemilihanId))
         .groupBy(mandiriKunjungan.pemilihanId)
         .orderBy(desc(mandiriKunjungan.createdAt));

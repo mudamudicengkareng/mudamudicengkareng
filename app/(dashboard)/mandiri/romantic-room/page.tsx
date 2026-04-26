@@ -72,6 +72,11 @@ export default function RomanticRoomPage() {
     const [queueSearch, setQueueSearch] = useState("");
     const [roomSearch, setRoomSearch] = useState("");
     
+    const [allCities, setAllCities] = useState<string[]>([]);
+    const [allVillages, setAllVillages] = useState<any[]>([]);
+    const [cityFilter, setCityFilter] = useState("Semua Kota");
+    const [villageFilter, setVillageFilter] = useState("Semua Desa");
+    
     const [showSurvey, setShowSurvey] = useState(false);
     const [form, setForm] = useState({
         namaPnkb: "",
@@ -140,6 +145,15 @@ export default function RomanticRoomPage() {
                 const statsRes = await fetch("/api/mandiri/stats/attendance");
                 const statsJson = await statsRes.json();
                 setAttendanceCount(statsJson.count || 0);
+
+                // Fetch Cities & Villages
+                const desaRes = await fetch("/api/mandiri/desa");
+                const desaJson = await desaRes.json();
+                if (Array.isArray(desaJson)) {
+                    setAllVillages(desaJson);
+                    const cities = Array.from(new Set(desaJson.map((d: any) => d.kota))).sort() as string[];
+                    setAllCities(cities);
+                }
             } else {
                 // Check if user is in a room or queue
                 const myRooms = (Array.isArray(roomsJson) ? roomsJson : []).find((r: any) => 
@@ -623,13 +637,17 @@ export default function RomanticRoomPage() {
     };
 
     const handleExportExcel = () => {
-        const data = visitHistory.map(item => ({
+        const data = filteredHistory.map(item => ({
             "Nomor Peserta Pemilih": item.pemilihNomorUrut || item.pemilihNo || "-",
             "Nama Pemilih": item.pemilihNama,
+            "Daerah/Kota Pemilih": item.pemilihKota || "-",
+            "Desa Pemilih": item.pemilihDesa || "-",
             "Status Pemilih": item.pemilihStatus,
             "Hasil Pemilih": item.pemilihHasil || "-",
             "Nomor Peserta Terpilih": item.terpilihNomorUrut || item.terpilihNo || "-",
             "Nama Terpilih": item.terpilihNama,
+            "Daerah/Kota Terpilih": item.terpilihKota || "-",
+            "Desa Terpilih": item.terpilihDesa || "-",
             "Status Terpilih": item.terpilihStatus,
             "Hasil Terpilih": item.terpilihHasil || "-",
             "Nomor Room": item.roomNama,
@@ -643,29 +661,40 @@ export default function RomanticRoomPage() {
     };
 
     const filteredHistory = visitHistory.filter(item => {
-        if (resultFilter === "Semua") return true;
-        const res1 = item.pemilihHasil;
-        const res2 = item.terpilihHasil;
+        // Result Filter
+        let matchResult = true;
+        if (resultFilter !== "Semua") {
+            const res1 = item.pemilihHasil;
+            const res2 = item.terpilihHasil;
+            
+            if (resultFilter === "Lanjut - Lanjut") {
+                matchResult = (res1 === "Lanjut" && res2 === "Lanjut");
+            } else if (resultFilter === "Lanjut - Tidak Lanjut") {
+                matchResult = (res1 === "Lanjut" && res2 === "Tidak Lanjut") || (res1 === "Tidak Lanjut" && res2 === "Lanjut");
+            } else if (resultFilter === "Tidak Lanjut - Tidak Lanjut") {
+                matchResult = (res1 === "Tidak Lanjut" && res2 === "Tidak Lanjut");
+            } else if (resultFilter === "Ragu-ragu - Ragu-ragu") {
+                matchResult = (res1 === "Ragu-ragu" && res2 === "Ragu-ragu");
+            } else if (resultFilter === "Lanjut - Ragu-ragu") {
+                matchResult = (res1 === "Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Lanjut");
+            } else if (resultFilter === "Tidak Lanjut - Ragu-ragu") {
+                matchResult = (res1 === "Tidak Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Tidak Lanjut");
+            }
+        }
+
+        // City Filter
+        let matchCity = true;
+        if (cityFilter !== "Semua Kota") {
+            matchCity = (item.pemilihKota === cityFilter || item.terpilihKota === cityFilter);
+        }
+
+        // Village Filter
+        let matchVillage = true;
+        if (villageFilter !== "Semua Desa") {
+            matchVillage = (item.pemilihDesa === villageFilter || item.terpilihDesa === villageFilter);
+        }
         
-        if (resultFilter === "Lanjut - Lanjut") {
-            return res1 === "Lanjut" && res2 === "Lanjut";
-        }
-        if (resultFilter === "Lanjut - Tidak Lanjut") {
-            return (res1 === "Lanjut" && res2 === "Tidak Lanjut") || (res1 === "Tidak Lanjut" && res2 === "Lanjut");
-        }
-        if (resultFilter === "Tidak Lanjut - Tidak Lanjut") {
-            return res1 === "Tidak Lanjut" && res2 === "Tidak Lanjut";
-        }
-        if (resultFilter === "Ragu-ragu - Ragu-ragu") {
-            return res1 === "Ragu-ragu" && res2 === "Ragu-ragu";
-        }
-        if (resultFilter === "Lanjut - Ragu-ragu") {
-            return (res1 === "Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Lanjut");
-        }
-        if (resultFilter === "Tidak Lanjut - Ragu-ragu") {
-            return (res1 === "Tidak Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Tidak Lanjut");
-        }
-        return true;
+        return matchResult && matchCity && matchVillage;
     });
 
     if (loading && !myProfile) return <div className="room-loading">Membuka Romantic Room...</div>;
@@ -866,6 +895,35 @@ export default function RomanticRoomPage() {
                                 <button className="btn-export-excel" onClick={handleExportExcel} style={{ marginRight: '10px', background: '#16a34a' }}>
                                     <Download size={16} /> Export Excel
                                 </button>
+                                
+                                <select 
+                                    className="dropdown-peserta"
+                                    value={cityFilter}
+                                    onChange={(e) => {
+                                        setCityFilter(e.target.value);
+                                        setVillageFilter("Semua Desa");
+                                    }}
+                                >
+                                    <option value="Semua Kota">Semua Kota</option>
+                                    {allCities.map(city => (
+                                        <option key={city} value={city}>{city}</option>
+                                    ))}
+                                </select>
+
+                                <select 
+                                    className="dropdown-peserta"
+                                    value={villageFilter}
+                                    onChange={(e) => setVillageFilter(e.target.value)}
+                                >
+                                    <option value="Semua Desa">Semua Desa</option>
+                                    {allVillages
+                                        .filter(v => cityFilter === "Semua Kota" || v.kota === cityFilter)
+                                        .map(v => (
+                                            <option key={v.id} value={v.nama}>{v.nama}</option>
+                                        ))
+                                    }
+                                </select>
+
                                 <select 
                                     className="dropdown-peserta"
                                     value={resultFilter}
@@ -891,10 +949,12 @@ export default function RomanticRoomPage() {
                                         <tr>
                                             <th>Nomor Peserta Pemilih</th>
                                             <th>Nama Pemilih</th>
+                                            <th>Daerah / Desa Pemilih</th>
                                             <th>Status Pemilih</th>
                                             <th>Hasil Pemilih</th>
                                             <th>Nomor Peserta Terpilih</th>
                                             <th>Nama Terpilih</th>
+                                            <th>Daerah / Desa Terpilih</th>
                                             <th>Status Terpilih</th>
                                             <th>Hasil Terpilih</th>
                                             <th className="text-center">Nomor Room</th>
@@ -906,6 +966,7 @@ export default function RomanticRoomPage() {
                                             <tr key={idx}>
                                                 <td>{item.pemilihNomorUrut || item.pemilihNo || '-'}</td>
                                                 <td className="font-bold">{item.pemilihNama}</td>
+                                                <td style={{ fontSize: '11px' }}>{item.pemilihKota || '-'} / {item.pemilihDesa || '-'}</td>
                                                 <td>{item.pemilihStatus}</td>
                                                 <td>
                                                     {item.pemilihHasil && (
@@ -920,6 +981,7 @@ export default function RomanticRoomPage() {
                                                 </td>
                                                 <td>{item.terpilihNomorUrut || item.terpilihNo || '-'}</td>
                                                 <td className="font-bold">{item.terpilihNama}</td>
+                                                <td style={{ fontSize: '11px' }}>{item.terpilihKota || '-'} / {item.terpilihDesa || '-'}</td>
                                                 <td>{item.terpilihStatus}</td>
                                                 <td>
                                                     {item.terpilihHasil && (
@@ -1056,7 +1118,7 @@ export default function RomanticRoomPage() {
                     .font-bold { font-weight: 700; color: #1e293b; }
                     
                     .manual-record-box { display: flex; align-items: center; gap: 12px; }
-                    .dropdown-peserta { padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; outline: none; min-width: 220px; background: white; cursor: pointer; }
+                    .dropdown-peserta { padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; outline: none; min-width: 150px; background: white; cursor: pointer; }
                     .dropdown-peserta:focus { border-color: #f43f5e; box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1); }
 
                     @keyframes float {
