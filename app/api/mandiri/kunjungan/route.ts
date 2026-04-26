@@ -44,6 +44,8 @@ export async function GET(request: NextRequest) {
             terpilihHasil: mandiriPemilihan.hasilPenerima,
             terpilihKota: md2.kota,
             terpilihDesa: md2.nama,
+            pemilihWa: sql<string>`COALESCE(${g1.noTelp}, ${pan1.noTelp})`,
+            terpilihWa: sql<string>`COALESCE(${g2.noTelp}, ${pan2.noTelp})`,
             pemilihanId: mandiriKunjungan.pemilihanId
         })
         .from(mandiriKunjungan)

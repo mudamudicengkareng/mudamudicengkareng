@@ -637,21 +637,24 @@ export default function RomanticRoomPage() {
     };
 
     const handleExportExcel = () => {
-        const data = filteredHistory.map(item => ({
+        const data = filteredData.map(item => ({
             "Nomor Peserta Pemilih": item.pemilihNomorUrut || item.pemilihNo || "-",
             "Nama Pemilih": item.pemilihNama,
             "Daerah/Kota Pemilih": item.pemilihKota || "-",
             "Desa Pemilih": item.pemilihDesa || "-",
+            "WhatsApp Pemilih": item.pemilihWa || "-",
             "Status Pemilih": item.pemilihStatus,
             "Hasil Pemilih": item.pemilihHasil || "-",
             "Nomor Peserta Terpilih": item.terpilihNomorUrut || item.terpilihNo || "-",
             "Nama Terpilih": item.terpilihNama,
             "Daerah/Kota Terpilih": item.terpilihKota || "-",
             "Desa Terpilih": item.terpilihDesa || "-",
+            "WhatsApp Terpilih": item.terpilihWa || "-",
             "Status Terpilih": item.terpilihStatus,
             "Hasil Terpilih": item.terpilihHasil || "-",
             "Nomor Room": item.roomNama,
-            "Waktu": item.createdAt ? new Date(item.createdAt).toLocaleString("id-ID") : "-"
+            "Waktu": item.createdAt ? new Date(item.createdAt).toLocaleString("id-ID") : "-",
+            "Status": item.status || "Selesai"
         }));
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -660,25 +663,62 @@ export default function RomanticRoomPage() {
         XLSX.writeFile(wb, "Laporan_Hasil_Romantic_Room.xlsx");
     };
 
-    const filteredHistory = visitHistory.filter(item => {
+    const normalizedQueue = allQueue.map(q => ({
+        id: q.id,
+        pemilihNomorUrut: q.pengirimNomorUrut,
+        pemilihNo: q.pengirimNo,
+        pemilihNama: q.pengirimNama,
+        pemilihStatus: q.pengirimStatus,
+        pemilihKota: q.pengirimKota,
+        pemilihDesa: q.pengirimDesa,
+        pemilihHasil: "Menunggu",
+        terpilihNomorUrut: q.penerimaNomorUrut,
+        terpilihNo: q.penerimaNo,
+        terpilihNama: q.penerimaNama,
+        terpilihStatus: q.penerimaStatus,
+        terpilihKota: q.penerimaKota,
+        terpilihDesa: q.penerimaDesa,
+        terpilihHasil: "Menunggu",
+        roomNama: "Antrean",
+        createdAt: q.createdAt,
+        status: "Menunggu",
+        pemilihanId: q.id,
+        pemilihWa: q.pengirimWa,
+        terpilihWa: q.penerimaWa,
+        isQueue: true
+    }));
+
+    const combinedList = [
+        ...normalizedQueue,
+        ...visitHistory.map(h => ({ ...h, status: "Selesai", isQueue: false }))
+    ];
+
+    const filteredData = combinedList.filter(item => {
         // Result Filter
         let matchResult = true;
-        if (resultFilter !== "Semua") {
-            const res1 = item.pemilihHasil;
-            const res2 = item.terpilihHasil;
-            
-            if (resultFilter === "Lanjut - Lanjut") {
-                matchResult = (res1 === "Lanjut" && res2 === "Lanjut");
-            } else if (resultFilter === "Lanjut - Tidak Lanjut") {
-                matchResult = (res1 === "Lanjut" && res2 === "Tidak Lanjut") || (res1 === "Tidak Lanjut" && res2 === "Lanjut");
-            } else if (resultFilter === "Tidak Lanjut - Tidak Lanjut") {
-                matchResult = (res1 === "Tidak Lanjut" && res2 === "Tidak Lanjut");
-            } else if (resultFilter === "Ragu-ragu - Ragu-ragu") {
-                matchResult = (res1 === "Ragu-ragu" && res2 === "Ragu-ragu");
-            } else if (resultFilter === "Lanjut - Ragu-ragu") {
-                matchResult = (res1 === "Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Lanjut");
-            } else if (resultFilter === "Tidak Lanjut - Ragu-ragu") {
-                matchResult = (res1 === "Tidak Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Tidak Lanjut");
+        if (resultFilter === "Sedang Menunggu") {
+            matchResult = (item.status === "Menunggu");
+        } else if (resultFilter !== "Semua") {
+            // Only history items can match specific result filters
+            if (item.status === "Menunggu") {
+                matchResult = false;
+            } else {
+                const res1 = item.pemilihHasil;
+                const res2 = item.terpilihHasil;
+                
+                if (resultFilter === "Lanjut - Lanjut") {
+                    matchResult = (res1 === "Lanjut" && res2 === "Lanjut");
+                } else if (resultFilter === "Lanjut - Tidak Lanjut") {
+                    matchResult = (res1 === "Lanjut" && res2 === "Tidak Lanjut") || (res1 === "Tidak Lanjut" && res2 === "Lanjut");
+                } else if (resultFilter === "Tidak Lanjut - Tidak Lanjut") {
+                    matchResult = (res1 === "Tidak Lanjut" && res2 === "Tidak Lanjut");
+                } else if (resultFilter === "Ragu-ragu - Ragu-ragu") {
+                    matchResult = (res1 === "Ragu-ragu" && res2 === "Ragu-ragu");
+                } else if (resultFilter === "Lanjut - Ragu-ragu") {
+                    matchResult = (res1 === "Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Lanjut");
+                } else if (resultFilter === "Tidak Lanjut - Ragu-ragu") {
+                    matchResult = (res1 === "Tidak Lanjut" && res2 === "Ragu-ragu") || (res1 === "Ragu-ragu" && res2 === "Tidak Lanjut");
+                }
             }
         }
 
@@ -701,18 +741,18 @@ export default function RomanticRoomPage() {
 
     if (isAdmin) {
         const sessionStats = {
-            lanjutLanjut: filteredHistory.filter(h => h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Lanjut').length,
-            lanjutTidak: filteredHistory.filter(h => 
+            lanjutLanjut: visitHistory.filter(h => h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Lanjut').length,
+            lanjutTidak: visitHistory.filter(h => 
                 (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Tidak Lanjut') || 
                 (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Lanjut')
             ).length,
-            tidakTidak: filteredHistory.filter(h => h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Tidak Lanjut').length,
-            raguRagu: filteredHistory.filter(h => h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Ragu-ragu').length,
-            lanjutRagu: filteredHistory.filter(h => 
+            tidakTidak: visitHistory.filter(h => h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Tidak Lanjut').length,
+            raguRagu: visitHistory.filter(h => h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Ragu-ragu').length,
+            lanjutRagu: visitHistory.filter(h => 
                 (h.pemilihHasil === 'Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
                 (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Lanjut')
             ).length,
-            tidakRagu: filteredHistory.filter(h => 
+            tidakRagu: visitHistory.filter(h => 
                 (h.pemilihHasil === 'Tidak Lanjut' && h.terpilihHasil === 'Ragu-ragu') || 
                 (h.pemilihHasil === 'Ragu-ragu' && h.terpilihHasil === 'Tidak Lanjut')
             ).length,
@@ -846,14 +886,44 @@ export default function RomanticRoomPage() {
                                 .map((item: any) => (
                                     <div key={item.id} className="queue-item">
                                         <div className="pair-names">
-                                            <div className="participant-badge-info">
-                                                <span className="p-number-badge">{item.pengirimNomorUrut || item.pengirimNo || '-'}</span>
-                                                <span className="p-name">{item.pengirimNama}</span>
+                                            {/* Caller */}
+                                            <div className="participant-row caller">
+                                                <div className="p-role-tag caller">Pemanggilan</div>
+                                                <div className="p-main-box">
+                                                    <span className="p-number-badge">{item.pengirimNomorUrut || item.pengirimNo || '-'}</span>
+                                                    <span className="p-name">{item.pengirimNama}</span>
+                                                </div>
+                                                <div className="p-meta-list">
+                                                    <div className="p-sub-info">
+                                                        <MapPin size={10} /> <span>{item.pengirimKota || '-'} / {item.pengirimDesa || '-'}</span>
+                                                    </div>
+                                                    <div className="p-sub-info">
+                                                        <Phone size={10} /> <span>{item.pengirimWa || '-'}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <Heart size={12} fill="#f43f5e" color="#f43f5e" style={{ flexShrink: 0 }} />
-                                            <div className="participant-badge-info">
-                                                <span className="p-number-badge">{item.penerimaNomorUrut || item.penerimaNo || '-'}</span>
-                                                <span className="p-name">{item.penerimaNama}</span>
+
+                                            <div className="heart-divider">
+                                                <div className="line"></div>
+                                                <Heart size={14} fill="#f43f5e" color="#f43f5e" />
+                                                <div className="line"></div>
+                                            </div>
+
+                                            {/* Called */}
+                                            <div className="participant-row called">
+                                                <div className="p-role-tag called">Dipanggil</div>
+                                                <div className="p-main-box">
+                                                    <span className="p-number-badge">{item.penerimaNomorUrut || item.penerimaNo || '-'}</span>
+                                                    <span className="p-name">{item.penerimaNama}</span>
+                                                </div>
+                                                <div className="p-meta-list">
+                                                    <div className="p-sub-info">
+                                                        <span>{item.penerimaKota || '-'} / {item.penerimaDesa || '-'}</span> <MapPin size={10} />
+                                                    </div>
+                                                    <div className="p-sub-info">
+                                                        <span>{item.penerimaWa || '-'}</span> <Phone size={10} />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="queue-actions">
@@ -995,6 +1065,7 @@ export default function RomanticRoomPage() {
                                     onChange={(e) => setResultFilter(e.target.value)}
                                 >
                                     <option value="Semua">Tampilkan Semua Hasil</option>
+                                    <option value="Sedang Menunggu">Sedang Menunggu</option>
                                     <option value="Lanjut - Lanjut">Lanjut - Lanjut</option>
                                     <option value="Lanjut - Tidak Lanjut">Lanjut - Tidak Lanjut</option>
                                     <option value="Tidak Lanjut - Tidak Lanjut">Tidak Lanjut - Tidak Lanjut</option>
@@ -1002,11 +1073,11 @@ export default function RomanticRoomPage() {
                                     <option value="Lanjut - Ragu-ragu">Lanjut - Ragu-ragu</option>
                                     <option value="Tidak Lanjut - Ragu-ragu">Tidak Lanjut - Ragu-ragu</option>
                                 </select>
-                                <span className="count-badge">{filteredHistory.length} Record</span>
+                                <span className="count-badge">{filteredData.length} Record</span>
                             </div>
                         </div>
                         <div className="card-body scrollable">
-                            {filteredHistory.length === 0 ? (
+                            {filteredData.length === 0 ? (
                                 <div className="empty-state">Tidak ada data yang sesuai dengan filter</div>
                             ) : (
                                 <table className="history-table">
@@ -1015,29 +1086,34 @@ export default function RomanticRoomPage() {
                                             <th>Nomor Peserta Pemilih</th>
                                             <th>Nama Pemilih</th>
                                             <th>Daerah / Desa Pemilih</th>
+                                            <th>WhatsApp Pemilih</th>
                                             <th>Status Pemilih</th>
                                             <th>Hasil Pemilih</th>
                                             <th>Nomor Peserta Terpilih</th>
                                             <th>Nama Terpilih</th>
                                             <th>Daerah / Desa Terpilih</th>
+                                            <th>WhatsApp Terpilih</th>
                                             <th>Status Terpilih</th>
                                             <th>Hasil Terpilih</th>
+                                            <th className="text-center">Status</th>
                                             <th className="text-center">Nomor Room</th>
                                             <th className="text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredHistory.map((item: any, idx) => (
+                                        {filteredData.map((item: any, idx) => (
                                             <tr key={idx}>
                                                 <td>{item.pemilihNomorUrut || item.pemilihNo || '-'}</td>
                                                 <td className="font-bold">{item.pemilihNama}</td>
                                                 <td style={{ fontSize: '11px' }}>{item.pemilihKota || '-'} / {item.pemilihDesa || '-'}</td>
+                                                <td style={{ fontSize: '11px' }}>{item.pemilihWa || '-'}</td>
                                                 <td>{item.pemilihStatus}</td>
                                                 <td>
                                                     {item.pemilihHasil && (
                                                         <span className={`result-badge ${
                                                             item.pemilihHasil === 'Lanjut' ? 'badge-success' : 
                                                             item.pemilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
+                                                            item.pemilihHasil === 'Menunggu' ? 'badge-info' :
                                                             'badge-danger'
                                                         }`}>
                                                             {item.pemilihHasil}
@@ -1047,12 +1123,14 @@ export default function RomanticRoomPage() {
                                                 <td>{item.terpilihNomorUrut || item.terpilihNo || '-'}</td>
                                                 <td className="font-bold">{item.terpilihNama}</td>
                                                 <td style={{ fontSize: '11px' }}>{item.terpilihKota || '-'} / {item.terpilihDesa || '-'}</td>
+                                                <td style={{ fontSize: '11px' }}>{item.terpilihWa || '-'}</td>
                                                 <td>{item.terpilihStatus}</td>
                                                 <td>
                                                     {item.terpilihHasil && (
                                                         <span className={`result-badge ${
                                                             item.terpilihHasil === 'Lanjut' ? 'badge-success' : 
                                                             item.terpilihHasil === 'Ragu-ragu' ? 'badge-warning' : 
+                                                            item.terpilihHasil === 'Menunggu' ? 'badge-info' :
                                                             'badge-danger'
                                                         }`}>
                                                             {item.terpilihHasil}
@@ -1060,12 +1138,24 @@ export default function RomanticRoomPage() {
                                                     )}
                                                 </td>
                                                 <td className="text-center">
+                                                    <span className={`status-badge-inline ${item.status === 'Menunggu' ? 'waiting' : 'finished'}`}>
+                                                        {item.status}
+                                                    </span>
+                                                </td>
+                                                <td className="text-center">
                                                     <span className="visit-count">{item.roomNama}</span>
                                                 </td>
                                                 <td className="text-center">
                                                     <div style={{display:'flex',gap:'4px',justifyContent:'center'}}>
-                                                        <button className="btn-act btn-edit" onClick={() => handleEditRecord(item)} title="Edit Hasil">✏️</button>
-                                                        <button className="btn-act btn-del" onClick={() => handleDeleteRecord(item)} title="Hapus Permanen">🗑️</button>
+                                                        {!item.isQueue && (
+                                                            <>
+                                                                <button className="btn-act btn-edit" onClick={() => handleEditRecord(item)} title="Edit Hasil">✏️</button>
+                                                                <button className="btn-act btn-del" onClick={() => handleDeleteRecord(item)} title="Hapus Permanen">🗑️</button>
+                                                            </>
+                                                        )}
+                                                        {item.isQueue && (
+                                                            <button className="btn-act btn-del" onClick={() => handleDeleteQueue(item)} title="Hapus Antrean">🗑️</button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1133,12 +1223,30 @@ export default function RomanticRoomPage() {
                     .queue-item { background: #fff; border: 1px solid #f1f5f9; padding: 12px; border-radius: 12px; margin-bottom: 10px; transition: all 0.2s; position: relative; }
                     .queue-item:hover { transform: translateY(-2px); border-color: #fecdd3; background: #fffcfc; }
                     
-                    .pair-names { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: nowrap; width: 100%; }
-                    .participant-badge-info { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
-                    .p-number-badge { background: #1e293b; color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; min-width: 28px; text-align: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    .p-name { color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 700; }
+                    .pair-names { display: flex; flex-direction: column; gap: 0; margin-bottom: 15px; width: 100%; }
+                    .participant-row { display: flex; flex-direction: column; min-width: 0; width: 100%; }
+                    .participant-row.called { align-items: flex-end; }
                     
-                    .queue-actions { display: flex; gap: 6px; }
+                    .p-role-tag { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+                    .p-role-tag.caller { background: #fff1f2; color: #f43f5e; }
+                    .p-role-tag.called { background: #f1f5f9; color: #64748b; }
+                    
+                    .p-main-box { display: flex; align-items: flex-start; gap: 10px; width: 100%; }
+                    .participant-row.called .p-main-box { flex-direction: row-reverse; text-align: right; }
+                    
+                    .p-number-badge { background: #1e293b; color: white; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; min-width: 32px; text-align: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 1px; }
+                    .p-name { color: #1e293b; font-size: 14px; font-weight: 800; line-height: 1.4; word-break: break-word; flex: 1; }
+                    
+                    .p-meta-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+                    .participant-row.called .p-meta-list { justify-content: flex-end; }
+                    
+                    .p-sub-info { font-size: 10px; color: #64748b; display: flex; align-items: center; gap: 4px; font-weight: 600; }
+                    .p-sub-info svg { color: #94a3b8; flex-shrink: 0; }
+                    
+                    .heart-divider { display: flex; align-items: center; gap: 12px; margin: 15px 0; width: 100%; }
+                    .heart-divider .line { flex: 1; height: 1px; background: #f1f5f9; }
+                    
+                    .queue-actions { display: flex; gap: 8px; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 5px; }
                     .btn-validate { flex: 1; background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%); color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2); }
                     .btn-validate:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(244, 63, 94, 0.3); }
                     .btn-delete-queue { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; padding: 8px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
@@ -1229,6 +1337,18 @@ export default function RomanticRoomPage() {
                     .result-badge.badge-success { background: #16a34a; }
                     .result-badge.badge-warning { background: #d97706; }
                     .result-badge.badge-danger { background: #dc2626; }
+                    .result-badge.badge-info { background: #0891b2; }
+
+                    .status-badge-inline {
+                        padding: 3px 8px;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        display: inline-block;
+                    }
+                    .status-badge-inline.waiting { background: #fff1f2; color: #f43f5e; border: 1px solid #fecdd3; }
+                    .status-badge-inline.finished { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
                     .btn-act { border: none; border-radius: 4px; padding: 3px 7px; font-size: 12px; cursor: pointer; transition: opacity 0.2s; }
                     .btn-act:hover { opacity: 0.75; }
                     .btn-edit { background: #eff6ff; }

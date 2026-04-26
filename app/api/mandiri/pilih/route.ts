@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mandiriPemilihan, users, generus, mandiriAntrean, mandiri, formPanitiaDanPengurus } from "@/lib/schema";
+import { mandiriPemilihan, users, generus, mandiriAntrean, mandiri, formPanitiaDanPengurus, mandiriDesa } from "@/lib/schema";
 import { eq, and, or, count, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getSession } from "@/lib/auth";
@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
             const m2 = alias(mandiri, "m2");
             const pan1 = alias(formPanitiaDanPengurus, "pan1");
             const pan2 = alias(formPanitiaDanPengurus, "pan2");
+            const md1 = alias(mandiriDesa, "md1");
+            const md2 = alias(mandiriDesa, "md2");
 
             const allSelections = await db.select({
                 id: mandiriPemilihan.id,
@@ -54,10 +56,16 @@ export async function GET(request: NextRequest) {
                 pengirimNo: g1.nomorUnik,
                 pengirimNomorUrut: m1.nomorUrut,
                 pengirimStatus: sql<string>`CASE WHEN ${pan1.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
+                pengirimKota: md1.kota,
+                pengirimDesa: md1.nama,
                 penerimaNama: g2.nama,
                 penerimaNo: g2.nomorUnik,
                 penerimaNomorUrut: m2.nomorUrut,
-                penerimaStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`
+                penerimaStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
+                penerimaKota: md2.kota,
+                penerimaDesa: md2.nama,
+                pengirimWa: sql<string>`COALESCE(${g1.noTelp}, ${pan1.noTelp})`,
+                penerimaWa: sql<string>`COALESCE(${g2.noTelp}, ${pan2.noTelp})`
             })
             .from(mandiriPemilihan)
             .innerJoin(g1, eq(mandiriPemilihan.pengirimId, g1.id))
@@ -66,6 +74,8 @@ export async function GET(request: NextRequest) {
             .leftJoin(m2, eq(g2.id, m2.generusId))
             .leftJoin(pan1, eq(g1.id, pan1.generusId))
             .leftJoin(pan2, eq(g2.id, pan2.generusId))
+            .leftJoin(md1, eq(sql`COALESCE(${g1.mandiriDesaId}, ${pan1.mandiriDesaId})`, md1.id))
+            .leftJoin(md2, eq(sql`COALESCE(${g2.mandiriDesaId}, ${pan2.mandiriDesaId})`, md2.id))
             .orderBy(desc(mandiriPemilihan.createdAt));
 
             return NextResponse.json(allSelections);
@@ -179,4 +189,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Gagal memproses pilihan" }, { status: 500 });
     }
 }
-
