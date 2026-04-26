@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mandiriPemilihan, users, generus, mandiriAntrean, mandiri } from "@/lib/schema";
+import { mandiriPemilihan, users, generus, mandiriAntrean, mandiri, formPanitiaDanPengurus } from "@/lib/schema";
 import { eq, and, or, count, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getSession } from "@/lib/auth";
@@ -41,6 +41,10 @@ export async function GET(request: NextRequest) {
         if (isAdmin && searchParams.get("all") === "true") {
             const g1 = alias(generus, "g1");
             const g2 = alias(generus, "g2");
+            const m1 = alias(mandiri, "m1");
+            const m2 = alias(mandiri, "m2");
+            const pan1 = alias(formPanitiaDanPengurus, "pan1");
+            const pan2 = alias(formPanitiaDanPengurus, "pan2");
 
             const allSelections = await db.select({
                 id: mandiriPemilihan.id,
@@ -48,12 +52,20 @@ export async function GET(request: NextRequest) {
                 createdAt: mandiriPemilihan.createdAt,
                 pengirimNama: g1.nama,
                 pengirimNo: g1.nomorUnik,
+                pengirimNomorUrut: m1.nomorUrut,
+                pengirimStatus: sql<string>`CASE WHEN ${pan1.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
                 penerimaNama: g2.nama,
-                penerimaNo: g2.nomorUnik
+                penerimaNo: g2.nomorUnik,
+                penerimaNomorUrut: m2.nomorUrut,
+                penerimaStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`
             })
             .from(mandiriPemilihan)
             .innerJoin(g1, eq(mandiriPemilihan.pengirimId, g1.id))
             .innerJoin(g2, eq(mandiriPemilihan.penerimaId, g2.id))
+            .leftJoin(m1, eq(g1.id, m1.generusId))
+            .leftJoin(m2, eq(g2.id, m2.generusId))
+            .leftJoin(pan1, eq(g1.id, pan1.generusId))
+            .leftJoin(pan2, eq(g2.id, pan2.generusId))
             .orderBy(desc(mandiriPemilihan.createdAt));
 
             return NextResponse.json(allSelections);

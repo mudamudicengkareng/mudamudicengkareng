@@ -558,13 +558,35 @@ export default function RomanticRoomPage() {
         }
     };
 
+    const handleDeleteQueue = async (item: any) => {
+        const result = await Swal.fire({
+            title: 'Hapus Antrean?',
+            html: `Antrean antara <b>${item.pengirimNama}</b> &amp; <b>${item.penerimaNama}</b> akan dihapus.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal'
+        });
+
+        if (!result.isConfirmed) return;
+        try {
+            const res = await fetch(`/api/mandiri/kunjungan/${item.id}`, { method: "DELETE" });
+            if (!res.ok) throw new Error((await res.json()).error);
+            Swal.fire({ title: "Terhapus!", text: "Antrean berhasil dihapus.", icon: "success", timer: 1500, showConfirmButton: false });
+            fetchData();
+        } catch (err: any) {
+            Swal.fire("Error", err.message, "error");
+        }
+    };
+
     const handleExportExcel = () => {
         const data = visitHistory.map(item => ({
-            "Nomor Peserta Pemilih": item.pemilihNomorUrut,
+            "Nomor Peserta Pemilih": item.pemilihNomorUrut || item.pemilihNo || "-",
             "Nama Pemilih": item.pemilihNama,
             "Status Pemilih": item.pemilihStatus,
             "Hasil Pemilih": item.pemilihHasil || "-",
-            "Nomor Peserta Terpilih": item.terpilihNomorUrut,
+            "Nomor Peserta Terpilih": item.terpilihNomorUrut || item.terpilihNo || "-",
             "Nama Terpilih": item.terpilihNama,
             "Status Terpilih": item.terpilihStatus,
             "Hasil Terpilih": item.terpilihHasil || "-",
@@ -609,11 +631,34 @@ export default function RomanticRoomPage() {
     if (isAdmin) {
         return (
             <div className="romantic-container admin-layout">
-                <header className="room-header">
-                    <div className="header-main">
-                        <div>
-                            <h1>Management <span>Romantic Room</span></h1>
-                            <p>Kelola antrean peserta dan alokasi ruangan pertemuan</p>
+                <header className="room-header-modern">
+                    <div className="header-top">
+                        <div className="title-area">
+                            <h1>Management <span>Romantic Room</span> <Sparkles size={24} className="sparkle-icon" /></h1>
+                            <p>Pantau antrean, alokasi ruangan, dan hasil pertemuan secara real-time</p>
+                        </div>
+                        <div className="stats-row">
+                            <div className="mini-stat">
+                                <Timer size={16} />
+                                <div className="ms-content">
+                                    <span className="ms-label">Antrean</span>
+                                    <span className="ms-value">{allQueue.length}</span>
+                                </div>
+                            </div>
+                            <div className="mini-stat">
+                                <DoorOpen size={16} />
+                                <div className="ms-content">
+                                    <span className="ms-label">Ruangan</span>
+                                    <span className="ms-value">{allRooms.filter(r => r.status === 'Terisi').length}/{allRooms.length}</span>
+                                </div>
+                            </div>
+                            <div className="mini-stat">
+                                <ClipboardList size={16} />
+                                <div className="ms-content">
+                                    <span className="ms-label">Total Record</span>
+                                    <span className="ms-value">{visitHistory.length}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -635,13 +680,24 @@ export default function RomanticRoomPage() {
                                 allQueue.map((item: any) => (
                                     <div key={item.id} className="queue-item">
                                         <div className="pair-names">
-                                            <span className="p-name">{item.pengirimNama}</span>
-                                            <Heart size={12} fill="#f43f5e" color="#f43f5e" />
-                                            <span className="p-name">{item.penerimaNama}</span>
+                                            <div className="participant-badge-info">
+                                                <span className="p-number-badge">{item.pengirimNomorUrut || item.pengirimNo || '-'}</span>
+                                                <span className="p-name">{item.pengirimNama}</span>
+                                            </div>
+                                            <Heart size={12} fill="#f43f5e" color="#f43f5e" style={{ flexShrink: 0 }} />
+                                            <div className="participant-badge-info">
+                                                <span className="p-number-badge">{item.penerimaNomorUrut || item.penerimaNo || '-'}</span>
+                                                <span className="p-name">{item.penerimaNama}</span>
+                                            </div>
                                         </div>
-                                        <button className="btn-validate" onClick={() => handleAssignToRoom(item.id, item.pengirimNama, item.penerimaNama)}>
-                                            Validasi & Masuk Room
-                                        </button>
+                                        <div className="queue-actions">
+                                            <button className="btn-validate" onClick={() => handleAssignToRoom(item.id, item.pengirimNama, item.penerimaNama)}>
+                                                Validasi & Masuk Room
+                                            </button>
+                                            <button className="btn-delete-queue" onClick={() => handleDeleteQueue(item)} title="Hapus Antrean">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))
                             )}
@@ -683,9 +739,15 @@ export default function RomanticRoomPage() {
                                         {room.status === "Terisi" ? (
                                             <div className="occupied-info">
                                                 <div className="occupied-pair">
-                                                    <span>{room.pengirimNama}</span>
-                                                    <span>&</span>
-                                                    <span>{room.penerimaNama}</span>
+                                                    <div className="pair-member">
+                                                        <span className="room-p-number">{room.pengirimNomorUrut || room.pengirimNo || '-'}</span>
+                                                        <span className="room-p-name">{room.pengirimNama}</span>
+                                                    </div>
+                                                    <span className="pair-separator">&</span>
+                                                    <div className="pair-member">
+                                                        <span className="room-p-number">{room.penerimaNomorUrut || room.penerimaNo || '-'}</span>
+                                                        <span className="room-p-name">{room.penerimaNama}</span>
+                                                    </div>
                                                 </div>
                                                 <button className="btn-clear" onClick={() => handleClearRoom(room.id)}>
                                                     <LogOut size={12} /> Selesaikan
@@ -752,7 +814,7 @@ export default function RomanticRoomPage() {
                                     <tbody>
                                         {filteredHistory.map((item: any, idx) => (
                                             <tr key={idx}>
-                                                <td>{item.pemilihNomorUrut}</td>
+                                                <td>{item.pemilihNomorUrut || item.pemilihNo || '-'}</td>
                                                 <td className="font-bold">{item.pemilihNama}</td>
                                                 <td>{item.pemilihStatus}</td>
                                                 <td>
@@ -766,7 +828,7 @@ export default function RomanticRoomPage() {
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td>{item.terpilihNomorUrut}</td>
+                                                <td>{item.terpilihNomorUrut || item.terpilihNo || '-'}</td>
                                                 <td className="font-bold">{item.terpilihNama}</td>
                                                 <td>{item.terpilihStatus}</td>
                                                 <td>
@@ -799,86 +861,118 @@ export default function RomanticRoomPage() {
                 </div>
 
                 <style jsx>{`
-                    .admin-layout { max-width: 1200px; padding: 10px; margin: 0 auto; }
-                    .admin-grid { display: grid; grid-template-columns: 240px 1fr; gap: 15px; }
-                    .admin-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-                    .header-main { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-                    .attendance-status { display: flex; gap: 15px; }
-                    .stat-item { background: white; padding: 8px 15px; border-radius: 12px; border: 1px solid #fecdd3; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 4px rgba(244, 63, 94, 0.1); }
-                    .stat-info { display: flex; flex-direction: column; }
-                    .stat-value { font-size: 18px; font-weight: 900; color: #f43f5e; line-height: 1; }
-                    .stat-label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .admin-layout { max-width: 1400px; padding: 20px; margin: 0 auto; background: #f8fafc; min-height: 100vh; }
+                    .room-header-modern { margin-bottom: 25px; }
+                    .header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+                    .title-area h1 { font-size: 28px; font-weight: 900; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 10px; }
+                    .title-area h1 span { color: #f43f5e; }
+                    .sparkle-icon { color: #f43f5e; animation: float 3s ease-in-out infinite; }
+                    .title-area p { color: #64748b; margin: 5px 0 0; font-size: 14px; }
                     
-                    .card-header { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fafafa; }
-                    .header-title { display: flex; align-items: center; gap: 6px; color: #1e293b; }
-                    .header-title h3 { font-size: 13px; font-weight: 800; margin: 0; }
-                    .count-badge { background: #fef2f2; color: #f43f5e; padding: 1px 6px; border-radius: 20px; font-size: 9px; font-weight: 700; }
-                    
-                    .card-body { padding: 8px; flex: 1; }
-                    .scrollable { max-height: 450px; overflow-y: auto; }
-                    .empty-state { text-align: center; color: #94a3b8; padding: 15px; font-style: italic; font-size: 11px; }
+                    .stats-row { display: flex; gap: 12px; }
+                    .mini-stat { background: white; padding: 10px 15px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+                    .mini-stat svg { color: #f43f5e; }
+                    .ms-content { display: flex; flex-direction: column; }
+                    .ms-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .ms-value { font-size: 16px; font-weight: 800; color: #1e293b; line-height: 1.2; }
 
-                    .queue-item { background: white; border: 1px solid #f1f5f9; padding: 8px; border-radius: 8px; margin-bottom: 6px; transition: transform 0.2s; }
-                    .queue-item:hover { transform: translateX(3px); border-color: #fecdd3; }
-                    .pair-names { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; font-weight: 700; font-size: 12px; flex-wrap: wrap; }
-                    .p-name { color: #1e293b; }
-                    .btn-validate { width: 100%; background: #f43f5e; color: white; border: none; padding: 4px; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer; }
+                    .admin-grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+                    .admin-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); transition: all 0.3s; }
+                    .admin-card:hover { box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-color: #fecdd3; }
                     
-                    .btn-add-room { background: #1e293b; color: white; border: none; padding: 2px 8px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; }
-                    .btn-add-room-bulk { background: #0891b2; color: white; border: none; padding: 2px 8px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-                    .btn-add-room-bulk:hover { background: #0e7490; }
-                    .btn-delete-all { background: #f43f5e; color: white; border: none; padding: 2px 8px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-                    .btn-delete-all:hover { background: #e11d48; }
+                    .card-header { padding: 15px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+                    .header-title { display: flex; align-items: center; gap: 10px; color: #1e293b; }
+                    .header-title svg { color: #f43f5e; }
+                    .header-title h3 { font-size: 15px; font-weight: 800; margin: 0; }
+                    .count-badge { background: #fef2f2; color: #f43f5e; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+                    
+                    .card-body { padding: 15px; flex: 1; }
+                    .scrollable { max-height: 600px; overflow-y: auto; padding-right: 5px; }
+                    .scrollable::-webkit-scrollbar { width: 4px; }
+                    .scrollable::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                    
+                    .empty-state { text-align: center; color: #94a3b8; padding: 40px 20px; font-style: italic; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+                    .queue-item { background: #fff; border: 1px solid #f1f5f9; padding: 12px; border-radius: 12px; margin-bottom: 10px; transition: all 0.2s; position: relative; }
+                    .queue-item:hover { transform: translateY(-2px); border-color: #fecdd3; background: #fffcfc; }
+                    
+                    .pair-names { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: nowrap; width: 100%; }
+                    .participant-badge-info { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+                    .p-number-badge { background: #1e293b; color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; min-width: 28px; text-align: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                    .p-name { color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 700; }
+                    
+                    .queue-actions { display: flex; gap: 6px; }
+                    .btn-validate { flex: 1; background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%); color: white; border: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2); }
+                    .btn-validate:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(244, 63, 94, 0.3); }
+                    .btn-delete-queue { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; padding: 8px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+                    .btn-delete-queue:hover { background: #fee2e2; color: #b91c1c; }
+                    
+                    .btn-add-room { background: #1e293b; color: white; border: none; padding: 6px 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+                    .btn-add-room:hover { background: #334155; transform: translateY(-1px); }
+                    .btn-add-room-bulk { background: #0891b2; color: white; border: none; padding: 6px 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+                    .btn-add-room-bulk:hover { background: #0e7490; transform: translateY(-1px); }
+                    .btn-delete-all { background: #f43f5e; color: white; border: none; padding: 6px 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+                    .btn-delete-all:hover { background: #e11d48; transform: translateY(-1px); }
+                    
                     .grid-rooms { 
                         display: grid; 
-                        grid-template-columns: repeat(10, 1fr); 
-                        gap: 10px; 
-                        padding-bottom: 10px;
+                        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+                        gap: 15px; 
                     }
-                    @media (max-width: 1400px) {
-                        .grid-rooms { grid-template-columns: repeat(8, 1fr); }
-                    }
-                    @media (max-width: 1100px) {
-                        .grid-rooms { grid-template-columns: repeat(5, 1fr); }
-                    }
-                    @media (max-width: 768px) {
-                        .grid-rooms { grid-template-columns: repeat(3, 1fr); }
-                    }
-
                     
-                    .room-tile { min-width: 0; border-radius: 8px; border: 1px solid #e2e8f0; padding: 8px; display: flex; flex-direction: column; gap: 6px; transition: all 0.3s; }
-                    .room-tile.terisi { background: #f0fdf4; border-color: #bbf7d0; }
-                    .room-tile.kosong { background: #fef2f2; border-color: #fecdd3; }
+                    .room-tile { min-width: 0; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px; display: flex; flex-direction: column; gap: 10px; transition: all 0.3s; background: white; }
+                    .room-tile.terisi { background: #f0fdf4; border-color: #bbf7d0; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.05); }
+                    .room-tile.kosong { background: #fff1f2; border-color: #fecdd3; opacity: 0.8; }
+                    .room-tile:hover { transform: scale(1.02); }
                     
-                    .room-top { display: flex; justify-content: space-between; align-items: center; }
-                    .room-name { font-weight: 800; font-size: 11px; color: #1e293b; }
-                    .btn-delete-room { color: #94a3b8; background: none; border: none; cursor: pointer; padding: 0; }
+                    .room-top { display: flex; justify-content: space-between; align-items: flex-start; }
+                    .room-name { font-weight: 800; font-size: 12px; color: #1e293b; }
+                    .btn-delete-room { color: #94a3b8; background: none; border: none; cursor: pointer; padding: 0; transition: color 0.2s; }
                     .btn-delete-room:hover { color: #ef4444; }
                     
-                    .room-middle { min-height: 35px; display: flex; align-items: center; justify-content: center; text-align: center; }
-                    .empty-label { color: #f43f5e; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-                    .occupied-pair { display: flex; flex-direction: column; font-size: 10px; font-weight: 700; color: #166534; margin-bottom: 2px; }
-                    .btn-clear { background: #166534; color: white; border: none; border-radius: 3px; padding: 1px 4px; font-size: 8px; cursor: pointer; display: flex; align-items: center; gap: 2px; }
+                    .room-middle { min-height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; }
+                    .empty-label { color: #f43f5e; font-weight: 900; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
                     
-                    .room-footer { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 3px; display: flex; align-items: center; gap: 3px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-                    .status-dot { width: 5px; height: 5px; border-radius: 50%; }
-                    .status-dot.kosong { background: #f43f5e; box-shadow: 0 0 5px #f43f5e; }
-                    .status-dot.terisi { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
+                    .occupied-pair { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+                    .pair-member { display: flex; align-items: center; gap: 6px; justify-content: center; min-width: 0; }
+                    .room-p-number { background: #166534; color: white; padding: 1px 4px; border-radius: 4px; font-size: 9px; font-weight: 800; flex-shrink: 0; }
+                    .room-p-name { font-size: 11px; font-weight: 700; color: #166534; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .pair-separator { font-size: 10px; color: #166534; opacity: 0.4; font-weight: 800; }
+                    
+                    .btn-clear { background: #166534; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; transition: all 0.2s; }
+                    .btn-clear:hover { background: #14532d; transform: scale(1.05); }
+                    
+                    .room-footer { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 8px; display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+                    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+                    .status-dot.kosong { background: #f43f5e; box-shadow: 0 0 8px rgba(244, 63, 94, 0.4); }
+                    .status-dot.terisi { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
 
-                    .history-table { width: 100%; border-collapse: collapse; }
-                    .history-table th { text-align: center; font-size: 11px; color: #64748b; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; }
-                    .history-table td { padding: 8px 0; border-bottom: 1px solid #f8fafc; font-size: 12px; text-align: center; }
-                    .history-table tr:last-child td { border: none; }
-                    .visit-count { background: #f0f9ff; color: #0369a1; padding: 1px 6px; border-radius: 10px; font-weight: 800; font-size: 10px; }
-                    .font-bold { font-weight: 700; color: #1e293b; }
-                    .text-sm { font-size: 11px; }
-                    .text-slate-500 { color: #64748b; }
-                    .text-center { text-align: center; }
                     .history-box { grid-column: span 2; margin-top: 10px; }
+                    .history-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+                    .history-table th { text-align: center; font-size: 11px; color: #64748b; padding: 15px 10px; border-bottom: 2px solid #f1f5f9; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .history-table td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; text-align: center; color: #1e293b; }
+                    .history-table tr:hover td { background: #f8fafc; }
+                    .history-table tr:last-child td { border: none; }
                     
-                    .manual-record-box { display: flex; align-items: center; gap: 8px; }
-                    .dropdown-peserta { padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; outline: none; min-width: 200px; background: white; }
-                    .dropdown-peserta:focus { border-color: #f43f5e; box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.1); }
+                    .visit-count { background: #f0f9ff; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-weight: 800; font-size: 11px; border: 1px solid #bae6fd; }
+                    .font-bold { font-weight: 700; color: #1e293b; }
+                    
+                    .manual-record-box { display: flex; align-items: center; gap: 12px; }
+                    .dropdown-peserta { padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 600; outline: none; min-width: 220px; background: white; cursor: pointer; }
+                    .dropdown-peserta:focus { border-color: #f43f5e; box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1); }
+
+                    @keyframes float {
+                        0% { transform: translateY(0); }
+                        50% { transform: translateY(-5px); }
+                        100% { transform: translateY(0); }
+                    }
+
+                    @media (max-width: 1024px) {
+                        .admin-grid { grid-template-columns: 1fr; }
+                        .history-box { grid-column: span 1; }
+                        .header-top { flex-direction: column; }
+                        .stats-row { width: 100%; overflow-x: auto; padding-bottom: 5px; }
+                    }
                     .btn-record-manual { background: #1e293b; color: white; border: none; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
                     .btn-record-manual:hover { background: #334155; }
                     .btn-export-excel { background: #16a34a; color: white; border: none; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }

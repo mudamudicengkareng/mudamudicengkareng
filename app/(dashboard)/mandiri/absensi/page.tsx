@@ -1,7 +1,8 @@
 "use client";
 
 import Topbar from "@/components/Topbar";
-import { Trash2, QrCode } from "lucide-react";
+import { Trash2, QrCode, Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -52,6 +53,8 @@ function AbsensiContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
   const [cameraId, setCameraId] = useState<string>("");
+  const [filterKota, setFilterKota] = useState("");
+  const [filterDesa, setFilterDesa] = useState("");
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<{ stop: () => void } | null>(null);
@@ -378,6 +381,55 @@ function AbsensiContent() {
       if (code) processScanCode(code);
     }
   };
+
+  const handleExport = () => {
+    if (absensiList.length === 0) {
+      Swal.fire({ icon: 'warning', title: 'Data Kosong', text: 'Tidak ada data untuk diexport' });
+      return;
+    }
+
+    const exportData = filteredAbsensi.map((item, index) => ({
+      "No": index + 1,
+      "Nama Lengkap": item.generusNama,
+      "Nomor Peserta": (item.nomorPeserta && isNaN(Number(item.nomorPeserta))) ? item.nomorPeserta : (item.nomorPeserta ? `#${item.nomorPeserta}` : 'PANITIA'),
+      "Kota/Daerah": item.desaKota || "-",
+      "Desa": item.desaNama || "-",
+      "Waktu": item.timestamp ? new Date(item.timestamp).toLocaleTimeString("id-ID") : "-",
+      "Keterangan": item.keterangan || "hadir"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Absensi");
+    
+    // Auto-size columns
+    const colWidths = [
+      { wch: 5 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+    ];
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, `Absensi_Mandiri_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const filteredAbsensi = absensiList.filter(item => {
+    const matchKota = !filterKota || item.desaKota === filterKota;
+    const matchDesa = !filterDesa || item.desaNama === filterDesa;
+    return matchKota && matchDesa;
+  });
+
+  const uniqueKota = Array.from(new Set(absensiList.map(i => i.desaKota).filter(Boolean))).sort();
+  const uniqueDesa = Array.from(new Set(
+    absensiList
+      .filter(i => !filterKota || i.desaKota === filterKota)
+      .map(i => i.desaNama)
+      .filter(Boolean)
+  )).sort();
 
   const stopScan = async () => {
     if (scannerRef.current) {
@@ -763,16 +815,56 @@ function AbsensiContent() {
 
           {/* Right: Attendance list */}
           <div className="card">
-            <div className="card-header">
-              <span className="card-title">Daftar Hadir Peserta</span>
-              <span className="badge badge-blue">{absensiList.length} hadir</span>
+            <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="card-title">Daftar Hadir Peserta</span>
+                <span className="badge badge-blue">{filteredAbsensi.length} dari {absensiList.length} hadir</span>
+              </div>
+              <button className="btn btn-green btn-sm" onClick={handleExport} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Download size={14} /> Export Excel
+              </button>
             </div>
+            
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "#f8fafc" }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: "150px" }}>
+                  <select 
+                    className="form-control text-sm" 
+                    value={filterKota} 
+                    onChange={(e) => { setFilterKota(e.target.value); setFilterDesa(""); }}
+                  >
+                    <option value="">Semua Kota/Daerah</option>
+                    {uniqueKota.map(k => <option key={k} value={k!}>{k}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: "150px" }}>
+                  <select 
+                    className="form-control text-sm" 
+                    value={filterDesa} 
+                    onChange={(e) => setFilterDesa(e.target.value)}
+                  >
+                    <option value="">Semua Desa</option>
+                    {uniqueDesa.map(d => <option key={d} value={d!}>{d}</option>)}
+                  </select>
+                </div>
+                {(filterKota || filterDesa) && (
+                  <button 
+                    className="btn btn-ghost btn-sm" 
+                    onClick={() => { setFilterKota(""); setFilterDesa(""); }}
+                    style={{ padding: "0 10px" }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
             {loading ? (
               <div className="loading"><div className="spinner" /></div>
-            ) : absensiList.length === 0 ? (
+            ) : filteredAbsensi.length === 0 ? (
               <div className="empty-state">
-                <h3>Belum ada yang hadir</h3>
-                <p>Scan QR code atau cari manual untuk mencatat</p>
+                <h3>Tidak ada data</h3>
+                <p>{absensiList.length === 0 ? "Scan QR code atau cari manual untuk mencatat" : "Tidak ada data yang cocok dengan filter"}</p>
               </div>
             ) : (
               <div className="table-wrapper">
@@ -787,7 +879,7 @@ function AbsensiContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {absensiList.map((item, i) => (
+                    {filteredAbsensi.map((item, i) => (
                       <tr key={item.id}>
                         <td className="text-muted table-hide-mobile">{i + 1}</td>
                         <td>

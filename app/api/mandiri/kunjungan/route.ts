@@ -28,11 +28,13 @@ export async function GET(request: NextRequest) {
             createdAt: mandiriKunjungan.createdAt,
             // Pemilih (Pengirim)
             pemilihNomorUrut: m1.nomorUrut,
+            pemilihNo: g1.nomorUnik,
             pemilihNama: g1.nama,
             pemilihStatus: sql<string>`CASE WHEN ${pan1.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
             pemilihHasil: mandiriPemilihan.hasilPengirim,
             // Terpilih (Penerima)
             terpilihNomorUrut: m2.nomorUrut,
+            terpilihNo: g2.nomorUnik,
             terpilihNama: g2.nama,
             terpilihStatus: sql<string>`CASE WHEN ${pan2.id} IS NOT NULL THEN 'Panitia' ELSE 'Peserta' END`,
             terpilihHasil: mandiriPemilihan.hasilPenerima,

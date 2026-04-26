@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
 
         const g1 = alias(generus, "g1");
         const g2 = alias(generus, "g2");
+        const m1 = alias(mandiri, "m1");
+        const m2 = alias(mandiri, "m2");
 
         const rooms = await db.select({
             id: mandiriRooms.id,
@@ -37,13 +39,19 @@ export async function GET(request: NextRequest) {
             status: mandiriRooms.status,
             pemilihanId: mandiriRooms.pemilihanId,
             pengirimNama: g1.nama,
+            pengirimNo: g1.nomorUnik,
+            pengirimNomorUrut: m1.nomorUrut,
             penerimaNama: g2.nama,
+            penerimaNo: g2.nomorUnik,
+            penerimaNomorUrut: m2.nomorUrut,
             updatedAt: mandiriRooms.updatedAt,
         })
         .from(mandiriRooms)
         .leftJoin(mandiriPemilihan, eq(mandiriRooms.pemilihanId, mandiriPemilihan.id))
         .leftJoin(g1, eq(mandiriPemilihan.pengirimId, g1.id))
         .leftJoin(g2, eq(mandiriPemilihan.penerimaId, g2.id))
+        .leftJoin(m1, eq(g1.id, m1.generusId))
+        .leftJoin(m2, eq(g2.id, m2.generusId))
         .orderBy(mandiriRooms.nama);
 
         return NextResponse.json(rooms);
