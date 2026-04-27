@@ -10,7 +10,7 @@ import {
     mandiriAntrean,
     mandiri
 } from "@/lib/schema";
-import { eq, desc, and, sql, or } from "drizzle-orm";
+import { eq, desc, and, sql, or, count } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
@@ -29,15 +29,18 @@ export async function GET(request: NextRequest) {
         }
         const kegiatanId = latestActivity[0].id;
 
-        // 2. Get all regions (Desa)
-        const regions = await db.select().from(mandiriDesa);
-
+        // 2. Get all unique cities (Kota) from mandiriDesa
+        const cities = await db
+            .select({ nama: mandiriDesa.kota })
+            .from(mandiriDesa)
+            .groupBy(mandiriDesa.kota);
+        
         const reports = [];
 
-        for (const region of regions) {
-            // Stats for this region
+        for (const city of cities) {
+            // Stats for this city
             
-            // a. Participants attendance (Only those in the 'mandiri' table)
+            // a. Participants attendance (Only those in the 'mandiri' table in this city)
             const participantsAttendance = await db
                 .select({ 
                     count: sql<number>`count(distinct ${generus.id})`,
@@ -47,12 +50,13 @@ export async function GET(request: NextRequest) {
                 .from(mandiriAbsensi)
                 .innerJoin(generus, eq(mandiriAbsensi.generusId, generus.id))
                 .innerJoin(mandiri, eq(generus.id, mandiri.generusId))
+                .innerJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
                 .where(and(
                     eq(mandiriAbsensi.kegiatanId, kegiatanId),
-                    eq(generus.mandiriDesaId, region.id)
+                    eq(mandiriDesa.kota, city.nama)
                 ));
 
-            // b. Committee attendance
+            // b. Committee attendance (in this city)
             const committeeAttendance = await db
                 .select({ 
                     count: sql<number>`count(distinct ${formPanitiaDanPengurus.id})`,
@@ -61,17 +65,13 @@ export async function GET(request: NextRequest) {
                 })
                 .from(mandiriAbsensi)
                 .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
+                .innerJoin(mandiriDesa, eq(formPanitiaDanPengurus.mandiriDesaId, mandiriDesa.id))
                 .where(and(
                     eq(mandiriAbsensi.kegiatanId, kegiatanId),
-                    eq(formPanitiaDanPengurus.mandiriDesaId, region.id)
+                    eq(mandiriDesa.kota, city.nama)
                 ));
 
-            // c. Romantic Room Results
-            // We count a result for a region if at least one person in the pair is from this region.
-            // But wait, the user says "per setiap daerah/kota". 
-            // If I count results by region, it's better to count how many pairs involving people from this region had which result.
-            // To avoid double counting pairs where both are from the same region, we just need to be careful.
-            
+            // c. Romantic Room Results (in this city)
             const pemilihanResults = await db
                 .select({
                     id: mandiriPemilihan.id,
@@ -80,9 +80,10 @@ export async function GET(request: NextRequest) {
                 })
                 .from(mandiriPemilihan)
                 .leftJoin(generus, or(eq(mandiriPemilihan.pengirimId, generus.id), eq(mandiriPemilihan.penerimaId, generus.id)))
+                .innerJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
                 .where(and(
                     eq(mandiriPemilihan.status, "Selesai"),
-                    eq(generus.mandiriDesaId, region.id)
+                    eq(mandiriDesa.kota, city.nama)
                 ))
                 .groupBy(mandiriPemilihan.id);
 
@@ -107,19 +108,19 @@ export async function GET(request: NextRequest) {
                 else if ((h1 === "Ragu-ragu" && h2 === "Tidak Lanjut") || (h1 === "Tidak Lanjut" && h2 === "Ragu-ragu")) rrStats.raguRaguTidakLanjut++;
             });
 
-            // d. Menunggu Antrean
+            // d. Menunggu Antrean (in this city) - Using mandiriPemilihan (Pairs)
             const waitingCount = await db
-                .select({ count: sql<number>`count(distinct ${mandiriAntrean.id})` })
-                .from(mandiriAntrean)
-                .innerJoin(generus, eq(mandiriAntrean.generusId, generus.id))
+                .select({ count: sql<number>`count(distinct ${mandiriPemilihan.id})` })
+                .from(mandiriPemilihan)
+                .leftJoin(generus, or(eq(mandiriPemilihan.pengirimId, generus.id), eq(mandiriPemilihan.penerimaId, generus.id)))
+                .innerJoin(mandiriDesa, eq(generus.mandiriDesaId, mandiriDesa.id))
                 .where(and(
-                    eq(mandiriAntrean.status, "Menunggu"),
-                    eq(generus.mandiriDesaId, region.id)
+                    eq(mandiriPemilihan.status, "Menunggu"),
+                    eq(mandiriDesa.kota, city.nama)
                 ));
 
             reports.push({
-                region: region.nama,
-                kota: region.kota,
+                kota: city.nama,
                 pesertaHadir: participantsAttendance[0].count || 0,
                 pesertaLaki: participantsAttendance[0].male || 0,
                 pesertaPerempuan: participantsAttendance[0].female || 0,
@@ -131,9 +132,17 @@ export async function GET(request: NextRequest) {
             });
         }
 
+        // Calculate Grand Totals
+        // For waiting queue grand total, we need to count unique pemilihan records with status "Menunggu"
+        const globalWaitingCount = await db
+            .select({ count: count() })
+            .from(mandiriPemilihan)
+            .where(eq(mandiriPemilihan.status, "Menunggu"));
+
         const grandTotal = {
             pesertaHadir: reports.reduce((acc, r) => acc + r.pesertaHadir, 0),
-            panitiaHadir: reports.reduce((acc, r) => acc + r.panitiaHadir, 0)
+            panitiaHadir: reports.reduce((acc, r) => acc + r.panitiaHadir, 0),
+            menungguAntrean: globalWaitingCount[0].count || 0
         };
 
         return NextResponse.json({ 

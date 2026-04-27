@@ -22,6 +22,8 @@ interface PanitiaItem {
   desaNama: string;
   noTelp: string;
   foto: string;
+  isHadir: number;
+  waktuHadir?: string;
   createdAt: string;
 }
 
@@ -282,6 +284,7 @@ export default function MandiriPanitiaPage() {
                       <th>Daerah / Desa</th>
                       <th>No. Telp</th>
                       <th>Nomor Unik</th>
+                      <th style={{ textAlign: "center" }}>Status Kehadiran</th>
                       <th style={{ textAlign: "center" }}>Lihat Kartu</th>
                       <th style={{ textAlign: "center" }}>Cetak PDF</th>
                       <th style={{ textAlign: "right" }}>Aksi</th>
@@ -307,6 +310,16 @@ export default function MandiriPanitiaPage() {
                         </td>
                         <td style={{ fontSize: 13 }}>{item.noTelp}</td>
                         <td style={{ fontFamily: "monospace", fontSize: 14, fontWeight: "700", color: "var(--primary)" }}>{item.nomorUnik}</td>
+                        <td style={{ textAlign: "center" }}>
+                          {item.isHadir === 1 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <span className="badge badge-green">Hadir</span>
+                              {item.waktuHadir && <span style={{ fontSize: '10px', opacity: 0.6 }}>{new Date(item.waktuHadir).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>}
+                            </div>
+                          ) : (
+                            <span className="badge badge-gray">Belum Hadir</span>
+                          )}
+                        </td>
                         <td style={{ textAlign: "center" }}>
                            <button 
                               className="btn-icon" 
@@ -375,6 +388,22 @@ export default function MandiriPanitiaPage() {
         .btn-outline-danger:hover {
           background: #fef2f2;
           border-color: #fecaca;
+        }
+        .badge-green {
+          background: #f0fdf4;
+          color: #16a34a;
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 700;
+        }
+        .badge-gray {
+          background: #f8fafc;
+          color: #64748b;
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 700;
         }
         .btn-icon {
            cursor: pointer;

@@ -686,7 +686,7 @@ export default function RomanticRoomPage() {
 
             data.reports.forEach((report: any) => {
                 message += `==========================\n`;
-                message += `*DAERAH/KOTA: ${report.region} / ${report.kota}*\n`;
+                message += `*DAERAH/KOTA: ${report.kota}*\n`;
                 message += `==========================\n`;
                 message += `• Total Peserta Hadir: *${report.pesertaHadir}*\n`;
                 message += `  - Laki-laki: ${report.pesertaLaki}\n`;
@@ -709,9 +709,10 @@ export default function RomanticRoomPage() {
             message += `*GRAND TOTAL KESELURUHAN*\n`;
             message += `==========================\n`;
             message += `• Total Peserta Hadir: *${data.grandTotal.pesertaHadir}*\n`;
-            message += `• Total Panitia Hadir: *${data.grandTotal.panitiaHadir}*\n\n`;
+            message += `• Total Panitia Hadir: *${data.grandTotal.panitiaHadir}*\n`;
+            message += `• Total Menunggu Antrean: *${data.grandTotal.menungguAntrean}*\n\n`;
 
-            message += `_Laporan otomatis dikirim melalui Sistem Romantic Room_`;
+            message += `_Laporan otomatis dikirim melalui Sistem Muda-Mudi Cengkareng Jakarta Barat 2_`;
 
             const encodedMessage = encodeURIComponent(message);
             const whatsappUrl = `https://wa.me/62882000089120?text=${encodedMessage}`;

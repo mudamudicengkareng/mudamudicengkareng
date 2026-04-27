@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { formPanitiaDanPengurus, mandiriDesa, mandiriKelompok, generus } from "@/lib/schema";
+import { formPanitiaDanPengurus, mandiriDesa, mandiriKelompok, generus, mandiriAbsensi, mandiriKegiatan } from "@/lib/schema";
 import { eq, and, or, like, sql, desc } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 
@@ -20,6 +20,10 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get("page") || "1");
     const limit = Number(searchParams.get("limit") || "200"); // Use larger limit for now as panitia list is usually small
     const offset = (page - 1) * limit;
+
+    // 1. Get the latest activity
+    const latestActivity = await db.select({ id: mandiriKegiatan.id }).from(mandiriKegiatan).orderBy(desc(mandiriKegiatan.tanggal)).limit(1);
+    const kegiatanId = latestActivity[0]?.id || "";
 
     const conditions = [];
 
@@ -47,9 +51,15 @@ export async function GET(request: NextRequest) {
         createdAt: formPanitiaDanPengurus.createdAt,
         desaKota: sql<string>`COALESCE(${mandiriDesa.kota}, 'N/A')`,
         desaNama: sql<string>`COALESCE(${mandiriDesa.nama}, 'N/A')`,
+        isHadir: sql<number>`CASE WHEN ${mandiriAbsensi.id} IS NOT NULL THEN 1 ELSE 0 END`,
+        waktuHadir: mandiriAbsensi.timestamp,
       })
       .from(formPanitiaDanPengurus)
       .leftJoin(mandiriDesa, eq(formPanitiaDanPengurus.mandiriDesaId, mandiriDesa.id))
+      .leftJoin(mandiriAbsensi, and(
+        eq(formPanitiaDanPengurus.generusId, mandiriAbsensi.generusId),
+        eq(mandiriAbsensi.kegiatanId, kegiatanId)
+      ))
       .where(whereClause)
       .limit(limit)
       .offset(offset)
