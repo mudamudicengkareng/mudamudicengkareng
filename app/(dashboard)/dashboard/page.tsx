@@ -4,10 +4,10 @@ import { Metadata } from "next";
 export const metadata: Metadata = { title: "Dashboard" };
 
 import { db } from "@/lib/db";
-import { generus, kegiatan, artikel, users, mandiriKegiatan, mandiri, mandiriAbsensi, formPanitiaDanPengurus } from "@/lib/schema";
-import { eq, and, sql, or, isNull, not, notInArray, desc } from "drizzle-orm";
+import { generus, kegiatan, artikel, users, mandiriKegiatan, mandiri, mandiriAbsensi, formPanitiaDanPengurus, mandiriDesa, mandiriKunjungan, mandiriPemilihan } from "@/lib/schema";
+import { eq, and, sql, or, isNull, not, notInArray, desc, inArray, aliasedTable, isNotNull } from "drizzle-orm";
 
-async function getStats(session: any) {
+async function getStats(session: any, searchParams?: any) {
   try {
     if (!session) return null;
     const isManagementOrPNKB = ["desa", "kelompok", "tim_pnkb"].includes(session.role);
@@ -40,6 +40,39 @@ async function getStats(session: any) {
     const kelompokFilterPanitia = (session.role === "kelompok" || (session.role === "tim_pnkb" && session.kelompokId)) && session.kelompokId ? eq(formPanitiaDanPengurus.mandiriKelompokId, session.kelompokId) : undefined;
     const panitiaFilter = desaFilterPanitia || kelompokFilterPanitia;
 
+    // Mandiri Specific Filters from searchParams
+    const mCity = searchParams?.city;
+    const mVillage = searchParams?.village;
+    const mGender = searchParams?.gender;
+
+    let mandiriUserConditions = [];
+    if (mGender) mandiriUserConditions.push(eq(generus.jenisKelamin, mGender as any));
+    
+    let mandiriDesaIds: number[] | undefined = undefined;
+    if (mCity || mVillage) {
+      const conditions = [];
+      if (mCity) conditions.push(eq(mandiriDesa.kota, mCity));
+      if (mVillage) conditions.push(eq(mandiriDesa.nama, mVillage));
+      
+      const matchedDesas = await db.select({ id: mandiriDesa.id }).from(mandiriDesa).where(and(...conditions));
+      mandiriDesaIds = matchedDesas.map(d => d.id);
+      
+      if (mandiriDesaIds.length === 0) {
+        mandiriUserConditions.push(sql`1=0`);
+      } else {
+        mandiriUserConditions.push(inArray(generus.mandiriDesaId, mandiriDesaIds));
+      }
+    }
+    const mandiriUserFilter = mandiriUserConditions.length > 0 ? and(...mandiriUserConditions) : undefined;
+
+    let panitiaConditions = [];
+    if (mGender) panitiaConditions.push(eq(formPanitiaDanPengurus.jenisKelamin, mGender as any));
+    if (mandiriDesaIds) {
+      if (mandiriDesaIds.length === 0) panitiaConditions.push(sql`1=0`);
+      else panitiaConditions.push(inArray(formPanitiaDanPengurus.mandiriDesaId, mandiriDesaIds));
+    }
+    const panitiaFilterWithParams = panitiaConditions.length > 0 ? and(...panitiaConditions) : undefined;
+
     const [
       generusCount,
       kegiatanCount,
@@ -62,6 +95,8 @@ async function getStats(session: any) {
       mandiriHadirLaki,
       mandiriHadirPerempuan,
       mandiriHadirPanitia,
+      mandiriHadirPanitiaLaki,
+      mandiriHadirPanitiaPerempuan,
       mandiriTotalPanitia,
     ] = await Promise.all([
       db.select({ count: sql<number>`count(DISTINCT ${generus.id})` }).from(generus).leftJoin(users, eq(generus.id, users.generusId)).where(finalGenerusFilter),
@@ -115,7 +150,7 @@ async function getStats(session: any) {
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiri)
         .innerJoin(generus, eq(mandiri.generusId, generus.id))
-        .where(generusFilter),
+        .where(and(generusFilter, mandiriUserFilter)),
       // Hadir Peserta (ada di mandiri, TIDAK ada di formPanitiaDanPengurus)
       db.select({ count: sql<number>`count(DISTINCT ${mandiri.id})` })
         .from(mandiriAbsensi)
@@ -124,6 +159,7 @@ async function getStats(session: any) {
         .where(and(
           attendanceFilter(),
           generusFilter,
+          mandiriUserFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Peserta Laki-laki (peserta, bukan panitia)
@@ -134,6 +170,7 @@ async function getStats(session: any) {
         .where(and(
           attendanceFilter(eq(generus.jenisKelamin, "L")),
           generusFilter,
+          mandiriUserFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Peserta Perempuan (peserta, bukan panitia)
@@ -144,18 +181,72 @@ async function getStats(session: any) {
         .where(and(
           attendanceFilter(eq(generus.jenisKelamin, "P")),
           generusFilter,
+          mandiriUserFilter,
           sql`${mandiriAbsensi.generusId} NOT IN (SELECT generus_id FROM form_panitia_dan_pengurus WHERE generus_id IS NOT NULL)`
         )),
       // Hadir Panitia
       db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
         .from(mandiriAbsensi)
         .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
-        .where(and(attendanceFilter(), panitiaFilter)),
+        .where(and(attendanceFilter(), panitiaFilter, panitiaFilterWithParams)),
+      // Hadir Panitia Laki-laki
+      db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
+        .from(mandiriAbsensi)
+        .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
+        .where(and(attendanceFilter(eq(formPanitiaDanPengurus.jenisKelamin, "L")), panitiaFilter, panitiaFilterWithParams)),
+      // Hadir Panitia Perempuan
+      db.select({ count: sql<number>`count(DISTINCT ${formPanitiaDanPengurus.id})` })
+        .from(mandiriAbsensi)
+        .innerJoin(formPanitiaDanPengurus, eq(mandiriAbsensi.generusId, formPanitiaDanPengurus.generusId))
+        .where(and(attendanceFilter(eq(formPanitiaDanPengurus.jenisKelamin, "P")), panitiaFilter, panitiaFilterWithParams)),
       // Total Panitia
       db.select({ count: sql<number>`count(*)` })
         .from(formPanitiaDanPengurus)
-        .where(panitiaFilter),
+        .where(and(panitiaFilter, panitiaFilterWithParams)),
     ]);
+
+    // Session Results Stats
+    const g1 = aliasedTable(generus, "g1");
+    const g2 = aliasedTable(generus, "g2");
+    const md1 = aliasedTable(mandiriDesa, "md1");
+    const md2 = aliasedTable(mandiriDesa, "md2");
+    const pan1 = aliasedTable(formPanitiaDanPengurus, "pan1");
+    const pan2 = aliasedTable(formPanitiaDanPengurus, "pan2");
+
+    const allVisits = await db.select({
+      h1: mandiriPemilihan.hasilPengirim,
+      h2: mandiriPemilihan.hasilPenerima,
+      city1: md1.kota,
+      village1: md1.nama,
+      city2: md2.kota,
+      village2: md2.nama,
+    })
+    .from(mandiriKunjungan)
+    .innerJoin(mandiriPemilihan, eq(mandiriKunjungan.pemilihanId, mandiriPemilihan.id))
+    .leftJoin(g1, eq(sql`COALESCE(${mandiriPemilihan.pengirimId}, ${mandiriKunjungan.generusId})`, g1.id))
+    .leftJoin(g2, eq(mandiriPemilihan.penerimaId, g2.id))
+    .leftJoin(pan1, eq(g1.id, pan1.generusId))
+    .leftJoin(pan2, eq(g2.id, pan2.generusId))
+    .leftJoin(md1, eq(sql`COALESCE(${g1.mandiriDesaId}, ${pan1.mandiriDesaId})`, md1.id))
+    .leftJoin(md2, eq(sql`COALESCE(${g2.mandiriDesaId}, ${pan2.mandiriDesaId})`, md2.id))
+    .where(isNotNull(mandiriKunjungan.pemilihanId))
+    .groupBy(mandiriKunjungan.pemilihanId);
+
+    const filteredVisits = allVisits.filter(v => {
+      let match = true;
+      if (mCity) match = (v.city1 === mCity || v.city2 === mCity);
+      if (mVillage && match) match = (v.village1 === mVillage || v.village2 === mVillage);
+      return match;
+    });
+
+    const sessionStats = {
+      lanjutLanjut: filteredVisits.filter(v => v.h1 === 'Lanjut' && v.h2 === 'Lanjut').length,
+      lanjutTidak: filteredVisits.filter(v => (v.h1 === 'Lanjut' && v.h2 === 'Tidak Lanjut') || (v.h1 === 'Tidak Lanjut' && v.h2 === 'Lanjut')).length,
+      tidakTidak: filteredVisits.filter(v => v.h1 === 'Tidak Lanjut' && v.h2 === 'Tidak Lanjut').length,
+      raguRagu: filteredVisits.filter(v => v.h1 === 'Ragu-ragu' && v.h2 === 'Ragu-ragu').length,
+      lanjutRagu: filteredVisits.filter(v => (v.h1 === 'Lanjut' && v.h2 === 'Ragu-ragu') || (v.h1 === 'Ragu-ragu' && v.h2 === 'Lanjut')).length,
+      tidakRagu: filteredVisits.filter(v => (v.h1 === 'Tidak Lanjut' && v.h2 === 'Ragu-ragu') || (v.h1 === 'Ragu-ragu' && v.h2 === 'Tidak Lanjut')).length,
+    };
 
     return {
       generus: Number(generusCount[0].count),
@@ -179,9 +270,12 @@ async function getStats(session: any) {
       mandiriHadirLaki: Number(mandiriHadirLaki[0]?.count || 0),
       mandiriHadirPerempuan: Number(mandiriHadirPerempuan[0]?.count || 0),
       mandiriHadirPanitia: Number(mandiriHadirPanitia[0]?.count || 0),
+      mandiriHadirPanitiaLaki: Number(mandiriHadirPanitiaLaki[0]?.count || 0),
+      mandiriHadirPanitiaPerempuan: Number(mandiriHadirPanitiaPerempuan[0]?.count || 0),
       mandiriTotalPanitia: Number(mandiriTotalPanitia[0]?.count || 0),
       mandiriTidakHadirPeserta: Math.max(0, Number(mandiriCount[0].count) - Number(mandiriHadirPeserta[0]?.count || 0)),
       mandiriTidakHadirPanitia: Math.max(0, Number(mandiriTotalPanitia[0]?.count || 0) - Number(mandiriHadirPanitia[0]?.count || 0)),
+      sessionStats,
     };
   } catch (error) {
     console.error("Dashboard DB fetch error:", error);
@@ -190,10 +284,15 @@ async function getStats(session: any) {
 }
 
 import Topbar from "@/components/Topbar";
+import DashboardFilter from "@/components/mandiri/DashboardFilter";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: any }) {
   const session = await getSession();
-  const stats = await getStats(session);
+  const stats = await getStats(session, searchParams);
+
+  // Fetch Cities & Villages for Filter
+  const villages = await db.select().from(mandiriDesa).orderBy(mandiriDesa.nama);
+  const cities = Array.from(new Set(villages.map((v) => v.kota))).sort();
 
   const isUser = session?.role === "generus" || session?.role === "creator";
 
@@ -216,7 +315,7 @@ export default async function DashboardPage() {
         {isUser ? (
           <UserDashboard session={session} stats={stats} />
         ) : (
-          <AdminDashboard role={session?.role || "kelompok"} stats={stats} />
+          <AdminDashboard role={session?.role || "kelompok"} stats={stats} cities={cities} villages={villages} />
         )}
       </div>
     </div>
@@ -267,16 +366,29 @@ function AttendanceChart({ label, present, absent }: { label: string; present: n
   );
 }
 
-function AdminDashboard({ role, stats }: { role: string; stats: any }) {
+function AdminDashboard({ role, stats, cities, villages }: { role: string; stats: any; cities?: any[]; villages?: any[] }) {
   if (role === "admin_romantic_room") {
     return (
       <div>
+        <DashboardFilter cities={cities || []} villages={villages || []} />
         <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Ringkasan Kehadiran Mandiri</h3>
         <div className="stats-grid" style={{ marginBottom: "2rem" }}>
           <StatCard icon="check-square" color="blue" label="Total Kehadiran Peserta" value={stats?.mandiriHadirPeserta ?? 0} href="/mandiri/absensi" />
           <StatCard icon="user-check" color="indigo" label="Kehadiran Peserta Laki-laki" value={stats?.mandiriHadirLaki ?? 0} href="/mandiri/absensi" />
           <StatCard icon="user-check" color="pink" label="Kehadiran Peserta Perempuan" value={stats?.mandiriHadirPerempuan ?? 0} href="/mandiri/absensi" />
           <StatCard icon="users" color="emerald" label="Total Kehadiran Panitia" value={stats?.mandiriHadirPanitia ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-check" color="indigo" label="Kehadiran Panitia Laki-laki" value={stats?.mandiriHadirPanitiaLaki ?? 0} href="/mandiri/absensi" />
+          <StatCard icon="user-check" color="pink" label="Kehadiran Panitia Perempuan" value={stats?.mandiriHadirPanitiaPerempuan ?? 0} href="/mandiri/absensi" />
+        </div>
+
+        <h3 className="section-title" style={{ marginTop: "1rem", marginBottom: "1rem" }}>Hasil Pertemuan (Session Results)</h3>
+        <div className="stats-grid" style={{ marginBottom: "2rem" }}>
+          <StatCard icon="heart" color="emerald" label="Lanjut - Lanjut" value={stats?.sessionStats?.lanjutLanjut ?? 0} href="/mandiri/romantic-room" />
+          <StatCard icon="heart-off" color="red" label="Tidak Lanjut - Tidak Lanjut" value={stats?.sessionStats?.tidakTidak ?? 0} href="/mandiri/romantic-room" />
+          <StatCard icon="help-circle" color="indigo" label="Ragu-ragu - Ragu-ragu" value={stats?.sessionStats?.raguRagu ?? 0} href="/mandiri/romantic-room" />
+          <StatCard icon="shuffle" color="orange" label="Lanjut - Tidak Lanjut" value={stats?.sessionStats?.lanjutTidak ?? 0} href="/mandiri/romantic-room" />
+          <StatCard icon="shuffle" color="blue" label="Lanjut - Ragu-ragu" value={stats?.sessionStats?.lanjutRagu ?? 0} href="/mandiri/romantic-room" />
+          <StatCard icon="shuffle" color="gray" label="Tidak Lanjut - Ragu-ragu" value={stats?.sessionStats?.tidakRagu ?? 0} href="/mandiri/romantic-room" />
         </div>
 
         <div className="responsive-grid-2" style={{ marginBottom: "2.5rem" }}>
@@ -424,6 +536,8 @@ function StatCard({ icon, color, label, href, value, gradient }: {
     "user-check": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><polyline points="17 11 19 13 23 9" /></svg>,
     "user-cog": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4" /><path d="M10 15H6a4 4 0 0 0-4 4v2" /><circle cx="19" cy="16" r="3" /><path d="m19 19-3 3h6l-3-3z" /></svg>,
     "user-x": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" /></svg>,
+    "help-circle": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>,
+    "shuffle": <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" /><polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" /><line x1="4" y1="4" x2="9" y2="9" /></svg>,
   };
 
   return (

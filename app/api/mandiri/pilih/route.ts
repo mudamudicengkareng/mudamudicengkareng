@@ -65,7 +65,9 @@ export async function GET(request: NextRequest) {
                 penerimaKota: md2.kota,
                 penerimaDesa: md2.nama,
                 pengirimWa: sql<string>`COALESCE(${g1.noTelp}, ${pan1.noTelp})`,
-                penerimaWa: sql<string>`COALESCE(${g2.noTelp}, ${pan2.noTelp})`
+                penerimaWa: sql<string>`COALESCE(${g2.noTelp}, ${pan2.noTelp})`,
+                pengirimJenisKelamin: g1.jenisKelamin,
+                penerimaJenisKelamin: g2.jenisKelamin
             })
             .from(mandiriPemilihan)
             .innerJoin(g1, eq(mandiriPemilihan.pengirimId, g1.id))

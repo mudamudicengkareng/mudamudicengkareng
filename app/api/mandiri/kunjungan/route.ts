@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
             terpilihDesa: md2.nama,
             pemilihWa: sql<string>`COALESCE(${g1.noTelp}, ${pan1.noTelp})`,
             terpilihWa: sql<string>`COALESCE(${g2.noTelp}, ${pan2.noTelp})`,
-            pemilihanId: mandiriKunjungan.pemilihanId
+            pemilihanId: mandiriKunjungan.pemilihanId,
+            pemilihJenisKelamin: g1.jenisKelamin,
+            terpilihJenisKelamin: g2.jenisKelamin
         })
         .from(mandiriKunjungan)
         .leftJoin(mandiriRooms, eq(mandiriKunjungan.roomId, mandiriRooms.id))

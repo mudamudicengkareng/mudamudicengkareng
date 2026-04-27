@@ -8,7 +8,7 @@ import { GenerusItem } from "@/lib/types";
 import {
   Sparkles, Search, User, MapPin, Phone, GraduationCap,
   Briefcase, Heart, Globe, Calendar, Lock, ClipboardList,
-  Download, Eye, EyeOff, ChevronDown, ChevronUp, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText, X, ArrowUpDown, Send
+  Download, Eye, EyeOff, ChevronDown, ChevronUp, Settings2, Users, Share2, Music, Utensils, Printer, Home, Instagram, QrCode, FileSpreadsheet, FileText, X, ArrowUpDown
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -530,54 +530,6 @@ export default function AdminKatalogPage() {
     }
   };
 
-  const handleSendReportWA = async () => {
-    const { isConfirmed } = await Swal.fire({
-      title: "Kirim Laporan ke WhatsApp?",
-      text: "Laporan jumlah total peserta dan panitia akan dikirimkan ke nomor WhatsApp 085159522624 via Bot.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Ya, Kirim!",
-      cancelButtonText: "Batal",
-      confirmButtonColor: "#25d366",
-    });
-
-    if (!isConfirmed) return;
-
-    Swal.fire({
-      title: "Menyiapkan Laporan...",
-      text: "Mohon tunggu sejenak...",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-
-    try {
-      const res = await fetch("/api/generus/whatsapp-report", { method: "POST" });
-      const json = await res.json();
-
-      if (json.success) {
-        Swal.fire({
-          icon: "success",
-          title: "Berhasil!",
-          text: "Laporan telah berhasil diproses. " + (json.sent ? "Telah dikirim ke WhatsApp." : "Pesan siap dikirim."),
-          confirmButtonText: "Tutup"
-        });
-        
-        // If not automatically sent by server (e.g. session missing), 
-        // we can provide a fallback to open WA link
-        if (!json.sent && json.whatsappMessage) {
-          const waUrl = `https://wa.me/6285159522624?text=${encodeURIComponent(json.whatsappMessage)}`;
-          window.open(waUrl, "_blank");
-        }
-      } else {
-        throw new Error(json.error || "Gagal mengirim laporan");
-      }
-    } catch (e: any) {
-      console.error(e);
-      Swal.fire("Gagal", e.message, "error");
-    }
-  };
 
   const copyPublicLink = () => {
     const url = `${window.location.origin}/mandiri/katalog`;
@@ -650,10 +602,6 @@ export default function AdminKatalogPage() {
             <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)' }} onClick={handleExportKatalogPDF}>
               <FileText size={16} />
               <span>Export PDF</span>
-            </button>
-            <button className="btn-export-id-cards" style={{ background: 'linear-gradient(135deg, #25d366, #128c7e)' }} onClick={handleSendReportWA}>
-              <Send size={16} />
-              <span>Kirim Laporan WA</span>
             </button>
             <button className="btn-export-id-cards" onClick={handleExportIDCards} disabled={isExporting}>
               <Printer size={16} />

@@ -640,6 +640,7 @@ export default function RomanticRoomPage() {
         const data = filteredData.map(item => ({
             "Nomor Peserta Pemilih": item.pemilihNomorUrut || item.pemilihNo || "-",
             "Nama Pemilih": item.pemilihNama,
+            "Jenis Kelamin Pemilih": item.pemilihJenisKelamin || "-",
             "Daerah/Kota Pemilih": item.pemilihKota || "-",
             "Desa Pemilih": item.pemilihDesa || "-",
             "WhatsApp Pemilih": item.pemilihWa || "-",
@@ -647,6 +648,7 @@ export default function RomanticRoomPage() {
             "Hasil Pemilih": item.pemilihHasil || "-",
             "Nomor Peserta Terpilih": item.terpilihNomorUrut || item.terpilihNo || "-",
             "Nama Terpilih": item.terpilihNama,
+            "Jenis Kelamin Terpilih": item.terpilihJenisKelamin || "-",
             "Daerah/Kota Terpilih": item.terpilihKota || "-",
             "Desa Terpilih": item.terpilihDesa || "-",
             "WhatsApp Terpilih": item.terpilihWa || "-",
@@ -661,6 +663,64 @@ export default function RomanticRoomPage() {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Laporan");
         XLSX.writeFile(wb, "Laporan_Hasil_Romantic_Room.xlsx");
+    };
+
+    const handleShareWhatsApp = async () => {
+        Swal.fire({
+            title: 'Menyiapkan Laporan WhatsApp...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            const res = await fetch("/api/mandiri/stats/whatsapp-report");
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || "Gagal mengambil data laporan");
+
+            let message = `*LAPORAN STATISTIK ROMANTIC ROOM*\n`;
+            message += `*KEGIATAN:* ${data.kegiatan}\n`;
+            message += `*WAKTU:* ${new Date().toLocaleString("id-ID")}\n\n`;
+
+            data.reports.forEach((report: any) => {
+                message += `==========================\n`;
+                message += `*DAERAH/KOTA: ${report.region} / ${report.kota}*\n`;
+                message += `==========================\n`;
+                message += `• Total Peserta Hadir: *${report.pesertaHadir}*\n`;
+                message += `  - Laki-laki: ${report.pesertaLaki}\n`;
+                message += `  - Perempuan: ${report.pesertaPerempuan}\n`;
+                message += `• Total Panitia Hadir: *${report.panitiaHadir}*\n`;
+                message += `  - Laki-laki: ${report.panitiaLaki}\n`;
+                message += `  - Perempuan: ${report.panitiaPerempuan}\n\n`;
+                
+                message += `*HASIL ROMANTIC ROOM:*\n`;
+                message += `• Lanjut - Lanjut: *${report.rr.lanjutLanjut}*\n`;
+                message += `• Tidak Lanjut - Lanjut: *${report.rr.tidakLanjutLanjut}*\n`;
+                message += `• Tidak Lanjut - Tidak Lanjut: *${report.rr.tidakLanjutTidakLanjut}*\n`;
+                message += `• Ragu-ragu - Ragu-ragu: *${report.rr.raguRaguRaguRagu}*\n`;
+                message += `• Ragu-ragu - Lanjut: *${report.rr.raguRaguLanjut}*\n`;
+                message += `• Ragu-ragu - Tidak Lanjut: *${report.rr.raguRaguTidakLanjut}*\n`;
+                message += `• Menunggu Antrean: *${report.menungguAntrean}*\n\n`;
+            });
+
+            message += `==========================\n`;
+            message += `*GRAND TOTAL KESELURUHAN*\n`;
+            message += `==========================\n`;
+            message += `• Total Peserta Hadir: *${data.grandTotal.pesertaHadir}*\n`;
+            message += `• Total Panitia Hadir: *${data.grandTotal.panitiaHadir}*\n\n`;
+
+            message += `_Laporan otomatis dikirim melalui Sistem Romantic Room_`;
+
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/62882000089120?text=${encodedMessage}`;
+            
+            Swal.close();
+            window.open(whatsappUrl, '_blank');
+        } catch (err: any) {
+            Swal.fire("Error", err.message, "error");
+        }
     };
 
     const normalizedQueue = allQueue.map(q => ({
@@ -685,6 +745,8 @@ export default function RomanticRoomPage() {
         pemilihanId: q.id,
         pemilihWa: q.pengirimWa,
         terpilihWa: q.penerimaWa,
+        pemilihJenisKelamin: q.pengirimJenisKelamin,
+        terpilihJenisKelamin: q.penerimaJenisKelamin,
         isQueue: true
     }));
 
@@ -1029,6 +1091,10 @@ export default function RomanticRoomPage() {
                             <div className="manual-record-box">
                                 <button className="btn-export-excel" onClick={handleExportExcel} style={{ marginRight: '10px', background: '#16a34a' }}>
                                     <Download size={16} /> Export Excel
+                                </button>
+
+                                <button className="btn-share-wa" onClick={handleShareWhatsApp} style={{ marginRight: '10px', background: '#25d366', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>
+                                    <MessageSquare size={16} /> Kirim WhatsApp
                                 </button>
 
                                 <select
